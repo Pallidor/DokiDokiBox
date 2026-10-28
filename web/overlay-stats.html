@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>OBS 叠加层 · 本场盲盒战报</title>
+<link rel="stylesheet" href="/static/common.css">
+<style>
+html, body { background: transparent; overflow: hidden; }
+.card {
+  width: 420px; max-height: 600px; overflow: hidden; padding: 20px; color: #F2F3F5;
+  background: rgba(12, 13, 17, var(--opacity)); border-radius: 18px; border: 1px solid rgba(255, 255, 255, 0.08);
+  display: flex; flex-direction: column; gap: 16px;
+}
+.head { display: flex; align-items: center; justify-content: space-between; }
+.head .t { display: flex; align-items: center; gap: 10px; font-size: 18px; font-weight: 700; }
+.muted { color: var(--sub); }
+.tiles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.tile { background: rgba(255, 255, 255, 0.05); border-radius: 12px; padding: 12px 14px; display: flex; flex-direction: column; gap: 4px; }
+.tile .k { font-size: 12px; color: var(--sub); }
+.tile .v { font-size: 28px; font-weight: 700; }
+.tile .s { font-size: 11px; color: var(--sub); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.block { display: flex; flex-direction: column; gap: 8px; }
+.block > .k { font-size: 13px; color: var(--sub); }
+.win { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 12px; border-radius: 10px; background: rgba(245, 196, 81, 0.10); }
+.win .u { font-size: 14px; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.win .g { color: var(--gold); font-weight: 700; }
+.win .v { font-size: 13px; color: var(--gold); }
+.lucky { display: grid; grid-template-columns: 28px minmax(0, 1fr) auto; align-items: center; gap: 10px; padding: 8px 4px; border-top: 1px solid rgba(255, 255, 255, 0.06); }
+.lucky .r { font-size: 16px; font-weight: 700; }
+.lucky .n { font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lucky .v { font-size: 14px; font-weight: 700; }
+.placeholder { font-size: 13px; color: var(--sub); padding: 10px 12px; border-radius: 10px; background: rgba(255, 255, 255, 0.04); }
+.foot { font-size: 12px; color: var(--sub); display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+.foot span:last-child { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#since-wrap { flex: none; font-size: 16px; color: #E3E5E9; }
+#since { font-size: 24px; font-weight: 700; color: var(--gold); margin: 0 2px; }
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="head" id="head">
+    <div class="t">
+      <svg aria-hidden="true" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--accent)"><path d="M3 8h18v4H3z"></path><path d="M5 12v9h14v-9"></path><path d="M12 8v13"></path><path d="M12 8c-2-4-6-4-6-1.5S9 8 12 8c3 0 6-.5 6-1.5S14 4 12 8z"></path></svg>
+      <span id="title">心动盲盒 · 本场战报</span>
+    </div>
+    <span class="num muted" style="font-size: 12px" id="dur">--:--:--</span>
+  </div>
+
+  <div class="tiles">
+    <div class="tile">
+      <span class="k">盲盒数</span>
+      <span class="num v" id="boxes">0</span>
+    </div>
+    <div class="tile">
+      <span class="k">观众净盈亏</span>
+      <span class="num v" id="net">0</span>
+      <span class="s">开出 <span class="num" id="got">0</span> − 投入 <span class="num" id="spent">0</span></span>
+    </div>
+  </div>
+
+  <div class="block" id="winsBlock">
+    <span class="k">最近大奖</span>
+    <div class="block" id="wins"></div>
+  </div>
+
+  <div class="block" id="luckyBlock">
+    <span class="k">欧皇榜 · 净赚最多</span>
+    <div id="lucky"></div>
+  </div>
+
+  <div class="foot" id="foot"><span id="since-wrap">距上次大奖 <span class="num" id="since">0</span> 盒</span><span id="room"></span></div>
+</div>
+<script src="/static/common.js"></script>
+<script>
+// 外观设置在 /overlays 页面调整，保存在服务端，随 /api/overlay 一起下发，修改后实时生效
+const root = document.documentElement.style;
+root.setProperty('--opacity', 0.82);
+let data = null, clockOffset = 0;
+const $ = (id) => document.getElementById(id);
+
+async function load() {
+  try {
+    const d = await (await fetch('/api/overlay')).json();
+    data = d;
+    clockOffset = d.meta.serverNow - Date.now();
+    render(d);
+  } catch {}
+}
+
+function applySettings(s) {
+  if (!s) return;
+  root.setProperty('--accent', s.accent || '#FF6F9C');
+  root.setProperty('--opacity', s.opacity);
+  $('title').textContent = s.title;
+  $('dur').hidden = !s.showDuration;
+  $('winsBlock').hidden = !s.showWins;
+  $('luckyBlock').hidden = !s.showLucky;
+  $('since-wrap').hidden = !s.showSince;
+  // 简易版只保留标题头、盲盒数和观众净盈亏
+  const simple = s.layout === 'simple';
+  $('foot').hidden = simple;
+  if (simple) $('winsBlock').hidden = $('luckyBlock').hidden = true;
+}
+
+function render(d) {
+  applySettings(d.settings);
+  $('boxes').textContent = GT.num(d.boxes);
+  $('net').textContent = GT.signed(d.net);
+  $('net').style.color = GT.pnlColor(d.net);
+  $('got').textContent = GT.num(d.got);
+  $('spent').textContent = GT.num(d.spent);
+  $('wins').innerHTML = d.wins.length ? d.wins.map((w) => `
+    <div class="win">
+      <span class="u">${GT.esc(w.user)} <span class="muted">开出</span> <span class="g">${GT.esc(w.gift)}</span>${w.num > 1 ? ` <span class="num muted">×${w.num}</span>` : ''}</span>
+      <span class="num v">${GT.num(w.value)}</span>
+    </div>`).join('') : `<div class="placeholder">本场暂未开出大奖</div>`;
+  $('lucky').innerHTML = d.lucky.length ? d.lucky.map((l, i) => `
+    <div class="lucky">
+      <span class="num r" style="color: ${i === 0 ? '#F5C451' : '#FF8DB0'}">${i + 1}</span>
+      <span class="n">${GT.esc(l.name)}</span>
+      <span class="num v" style="color: ${GT.pnlColor(l.net)}">${GT.signed(l.net)}</span>
+    </div>`).join('') : `<div class="placeholder">还没有人送盲盒</div>`;
+  $('since').textContent = GT.num(d.sinceBig);
+  $('room').textContent = d.meta.title || (d.meta.roomId ? `直播间 ${d.meta.roomId}` : '');
+  tick();
+}
+
+function tick() {
+  if (!data || !data.meta.sessionStart) return;
+  const m = data.meta;
+  if (m.sessionOffline) {
+    $('dur').textContent = '未开播';
+    return;
+  }
+  const end = m.sessionEnd || Date.now() + clockOffset;
+  $('dur').textContent = GT.hms(end - m.sessionStart);
+}
+setInterval(tick, 1000);
+
+load();
+GT.connect({ onChange: load, pollMs: 5000 });
+</script>
+</body>
+</html>

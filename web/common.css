@@ -1,0 +1,25 @@
+:root {
+  --bg: #0F1115;
+  --panel: #171A21;
+  --border: #262A33;
+  --line: #22262E;
+  --chip: #3A3F4B;
+  --inset: #12141A;
+  --text: #E8EAED;
+  --sub: #B4BAC4;
+  --muted: #9AA0AA;
+  --accent: #FF6F9C;
+  --gold: #F5C451;
+  --profit: #7FB8FF; /* 观众盈利：蓝 */
+  --loss: #3DD6A3;   /* 观众亏损：绿 */
+  --danger: #FF8A8A;
+  --font: 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif;
+  --mono: 'JetBrains Mono', 'Cascadia Mono', Consolas, ui-monospace, monospace;
+}
+* { box-sizing: border-box; }
+body { margin: 0; font-family: var(--font); }
+a { color: #FF8DB0; }
+a:hover { color: #FFB3CB; }
+button { font-family: inherit; }
+.num { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+[hidden] { display: none !important; }

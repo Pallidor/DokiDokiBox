@@ -1,0 +1,828 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<title>心动盲盒数据台 · 主播后台</title>
+<link rel="stylesheet" href="/static/common.css">
+<style>
+body { background: var(--bg); color: var(--text); }
+.page { min-height: 100vh; padding: 28px 24px 48px; }
+.wrap { max-width: 1360px; margin: 0 auto; display: flex; flex-direction: column; gap: 20px; }
+
+header.top { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px; }
+.title-row { display: flex; align-items: center; gap: 12px 16px; flex-wrap: wrap; }
+h1 { margin: 0; font-size: 24px; font-weight: 700; letter-spacing: 0.5px; }
+.badge { font-size: 12px; padding: 3px 8px; border-radius: 6px; border: 1px solid var(--chip); color: var(--sub); }
+.top-right { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: #17090E; font-weight: 700; }
+.btn.primary:hover { color: #17090E; border-color: var(--accent); filter: brightness(1.08); }
+
+.room { background: var(--panel); border: 1px solid var(--border); border-radius: 14px; padding: 16px 18px; display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+.avatar { width: 64px; height: 64px; flex: none; border-radius: 50%; overflow: hidden; background: var(--accent); color: #17090E; font-size: 26px; font-weight: 700; text-decoration: none; display: flex; align-items: center; justify-content: center; box-shadow: 0 0 0 2px var(--panel), 0 0 0 4px var(--chip); }
+.avatar:hover { color: #17090E; }
+.room.on .avatar { box-shadow: 0 0 0 2px var(--panel), 0 0 0 4px var(--accent); }
+.avatar img { width: 100%; height: 100%; object-fit: cover; }
+.avatar.loading { background: var(--chip); animation: pulse 1.6s ease-in-out infinite; }
+.uname.loading { font-size: 16px; font-weight: 500; color: var(--muted); }
+.room-info { flex: 1 1 320px; min-width: 0; display: flex; flex-direction: column; gap: 5px; }
+.name-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.uname { font-size: 18px; font-weight: 700; }
+.lvl { font-size: 11px; font-weight: 700; padding: 2px 6px; border-radius: 5px; background: #2A2E38; color: var(--gold); }
+.live-state { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; padding: 3px 9px; border-radius: 999px; background: #2A2E38; color: var(--muted); }
+.live-state .dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+.live-state.on { background: color-mix(in srgb, var(--accent) 16%, transparent); color: var(--accent); }
+.live-state.on .dot { animation: pulse 1.6s ease-in-out infinite; }
+@keyframes pulse { 50% { opacity: 0.35; } }
+.room-title { font-size: 14px; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.room-meta { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 13px; color: var(--sub); }
+.room-meta a { text-decoration: none; }
+.room-meta .num { color: var(--text); }
+.room-meta a .num { color: inherit; }
+.room-side { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; margin-left: auto; text-align: right; }
+.room-side .k { font-size: 12px; color: var(--muted); }
+.room-side .dur { font-size: 24px; font-weight: 700; }
+#connText { font-size: 12px; color: var(--sub); }
+#connText.bad { color: var(--danger); }
+#connText.warn { color: var(--gold); cursor: help; }
+.room-edit { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 6px; }
+.room-edit input { width: 280px; max-width: 100%; min-height: 40px; padding: 0 12px; border-radius: 10px; border: 1px solid var(--chip); background: var(--inset); color: var(--text); font-size: 14px; font-family: inherit; }
+.room-edit input:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+.room-edit .btn { min-height: 40px; padding: 0 14px; }
+.room-edit .msg { font-size: 12px; color: var(--sub); }
+.room-edit .msg.bad { color: var(--danger); }
+.btn.quit:hover { border-color: var(--danger); color: var(--danger); }
+.btn.warn { border-color: var(--gold); color: var(--gold); }
+.setup { background: var(--panel); border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--border)); border-radius: 16px; padding: 28px; display: flex; flex-direction: column; gap: 16px; }
+.setup h2 { font-size: 22px; }
+.setup p { margin: 0; color: var(--sub); font-size: 14px; line-height: 1.8; }
+.setup ol { margin: 0; padding: 0; list-style: none; display: flex; gap: 10px; flex-wrap: wrap; font-size: 13px; color: var(--sub); }
+.setup ol li { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-radius: 10px; background: var(--inset); }
+.setup ol b { width: 22px; height: 22px; border-radius: 50%; background: var(--accent); color: #17090E; font-size: 12px; display: inline-flex; align-items: center; justify-content: center; }
+.setup form { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+.setup input { flex: 1 1 280px; max-width: 420px; min-height: 48px; padding: 0 14px; border-radius: 10px; border: 1px solid var(--chip); background: var(--inset); color: var(--text); font-size: 16px; font-family: inherit; }
+.setup input:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+.setup .btn { min-height: 48px; padding: 0 22px; font-size: 15px; }
+.setup .msg { font-size: 13px; color: var(--sub); }
+.setup .msg.bad { color: var(--danger); }
+.login-banner { display: flex; align-items: center; justify-content: space-between; gap: 12px 20px; flex-wrap: wrap; padding: 14px 18px; border-radius: 14px; border: 1px solid color-mix(in srgb, var(--gold) 45%, transparent); background: color-mix(in srgb, var(--gold) 10%, var(--panel)); }
+.login-banner b { color: var(--gold); font-size: 15px; }
+.login-banner p { margin: 4px 0 0; font-size: 13px; color: var(--sub); line-height: 1.6; }
+.modal { position: fixed; inset: 0; z-index: 9; background: rgba(8, 9, 12, 0.72); display: flex; align-items: center; justify-content: center; padding: 16px; }
+.dialog { width: 380px; max-width: 100%; background: var(--panel); border: 1px solid var(--border); border-radius: 16px; padding: 22px; display: flex; flex-direction: column; gap: 14px; text-align: center; }
+.dialog h2 { font-size: 19px; }
+.qr { width: 216px; height: 216px; margin: 0 auto; padding: 8px; border-radius: 12px; background: #FFFFFF; position: relative; display: flex; align-items: center; justify-content: center; color: #555; font-size: 13px; }
+.qr img { width: 200px; height: 200px; image-rendering: pixelated; }
+.qr.dim img { opacity: 0.12; }
+.qr .over { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 15px; font-weight: 700; color: #17090E; }
+.login-state { font-size: 15px; font-weight: 600; min-height: 22px; }
+.login-state.ok { color: var(--profit); }
+.login-state.bad { color: var(--danger); }
+.login-steps { margin: 0; padding: 12px 14px; list-style: none; border-radius: 10px; background: var(--inset); font-size: 13px; color: var(--sub); line-height: 1.9; text-align: left; }
+.login-note { margin: 0; font-size: 12px; color: var(--muted); line-height: 1.7; text-align: left; }
+.login-note p { margin: 0 0 6px; }
+.login-note p:last-child { margin-bottom: 0; }
+.login-note b { color: var(--sub); font-weight: 600; }
+.dialog .actions { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+.closed { position: fixed; inset: 0; z-index: 10; background: rgba(15, 17, 21, 0.94); display: flex; align-items: center; justify-content: center; padding: 24px; text-align: center; }
+.closed h2 { font-size: 22px; margin-bottom: 10px; }
+.closed p { margin: 0; color: var(--sub); font-size: 14px; line-height: 1.8; }
+.seg { display: flex; background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 4px; gap: 4px; }
+.seg button { min-height: 36px; padding: 0 14px; border: 0; border-radius: 7px; font-size: 14px; cursor: pointer; background: transparent; color: var(--sub); }
+.seg button[aria-pressed="true"] { background: #2A2E38; color: #FFFFFF; }
+.btn { min-height: 44px; padding: 0 16px; border-radius: 10px; border: 1px solid var(--chip); background: var(--panel); color: var(--text); font-size: 14px; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; text-decoration: none; }
+.btn:hover { color: var(--text); border-color: #4A505D; }
+
+.kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(210px, 100%), 1fr)); gap: 12px; }
+.kpi { background: var(--panel); border: 1px solid var(--border); border-radius: 14px; padding: 18px 18px 16px; display: flex; flex-direction: column; gap: 8px; }
+.kpi .label, .kpi .sub { font-size: 13px; color: var(--muted); }
+.kpi .sub { font-size: 12px; }
+.kpi .value { font-size: 30px; font-weight: 700; }
+
+.row { display: flex; flex-wrap: wrap; gap: 16px; align-items: stretch; }
+.panel { min-width: 0; background: var(--panel); border: 1px solid var(--border); border-radius: 14px; padding: 18px; display: flex; flex-direction: column; gap: 12px; }
+.panel-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+.panel-head.baseline { align-items: baseline; }
+h2 { margin: 0; font-size: 17px; font-weight: 700; }
+.hint { font-size: 12px; color: var(--muted); }
+.empty { padding: 28px 8px; text-align: center; font-size: 14px; color: var(--muted); }
+
+.feed-panel { flex: 1 1 400px; }
+.check { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; color: var(--sub); min-height: 44px; cursor: pointer; }
+.check input { width: 18px; height: 18px; accent-color: var(--accent); }
+.feed { display: flex; flex-direction: column; flex: 1 1 0; min-height: 480px; overflow-y: auto; }
+.feed-row { display: grid; grid-template-columns: 64px minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 10px 8px; border-top: 1px solid var(--line); border-radius: 8px; }
+.feed-row.big { background: rgba(245, 196, 81, 0.08); }
+.feed-row.fresh { animation: fresh 1.2s ease-out; }
+@keyframes fresh { from { background: rgba(255, 255, 255, 0.07); } }
+.feed-row .time { font-size: 12px; color: var(--muted); }
+.feed-row .main { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.feed-row .line1 { font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.feed-row .line2 { font-size: 12px; color: var(--muted); }
+.feed-row .delta { font-size: 14px; font-weight: 700; }
+
+.rate-panel { flex: 999 1 560px; gap: 14px; }
+.xscroll { overflow-x: auto; }
+.tiers { display: flex; flex-direction: column; }
+.tiers-head, .tier { display: grid; grid-template-columns: 30px minmax(110px, 190px) minmax(0, 1fr) 96px; gap: 14px; align-items: center; }
+.tiers-head { padding: 0 6px 8px; font-size: 12px; color: var(--muted); }
+.tiers-head span:first-child { grid-column: 1 / 3; }
+.tiers-head span:last-child { grid-column: 4; text-align: right; }
+.tier { padding: 10px 6px; border-top: 1px solid var(--line); }
+.tier.zero { opacity: 0.5; }
+.tier .rank { width: 30px; height: 30px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 700; }
+.tier .gift { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.tier .gift .n { font-size: 15px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tier .sub { font-size: 12px; color: var(--muted); }
+.tier .track { height: 10px; background: var(--line); border-radius: 5px; overflow: hidden; }
+.tier .fill { display: block; height: 100%; border-radius: 5px; transition: width 0.4s; }
+.tier .stat { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; }
+.tier .stat .c { font-size: 22px; font-weight: 700; line-height: 1.1; }
+.tier .stat .c small { font-size: 12px; font-weight: 400; color: var(--muted); margin-left: 2px; }
+@media (max-width: 560px) {
+  .tiers-head, .tier { grid-template-columns: 30px minmax(0, 1fr) 84px; }
+  .tiers-head span:last-child { grid-column: 3; }
+  .tier .track { grid-column: 2 / 4; grid-row: 2; }
+}
+.minis { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px; }
+.mini { background: var(--inset); border-radius: 10px; padding: 12px 14px; display: flex; flex-direction: column; gap: 4px; }
+.mini .k { font-size: 12px; color: var(--muted); }
+.mini .v { font-size: 18px; font-weight: 700; }
+
+.rank-panel { flex: 999 1 600px; }
+table { width: 100%; min-width: 600px; border-collapse: collapse; font-size: 14px; }
+thead tr { color: var(--muted); font-size: 12px; text-align: right; }
+th { font-weight: 400; padding: 0 8px 8px; }
+tbody tr { border-top: 1px solid var(--line); text-align: right; }
+td { padding: 12px 8px; }
+td.l, th.l { text-align: left; }
+.sorts { display: flex; gap: 6px; flex-wrap: wrap; }
+.sorts button { min-height: 36px; padding: 0 12px; border-radius: 8px; border: 1px solid var(--chip); background: transparent; color: var(--sub); font-size: 13px; cursor: pointer; }
+.sorts button[aria-pressed="true"] { border-color: var(--accent); color: #FFFFFF; }
+.note { margin: 0; font-size: 12px; color: var(--muted); display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+.link-btn { background: none; border: 0; padding: 0; color: #FF8DB0; font-size: 12px; cursor: pointer; }
+.link-btn:hover { color: #FFB3CB; }
+
+.trend-panel { flex: 1 1 460px; gap: 14px; }
+.legend { display: flex; gap: 14px; font-size: 12px; color: var(--sub); }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.legend i { width: 10px; height: 10px; border-radius: 2px; }
+.bars { display: flex; gap: 8px; align-items: flex-end; justify-content: center; height: 240px; padding: 0 2px; border-bottom: 1px solid #2E333D; }
+.bar-group { flex: 1; min-width: 0; max-width: 64px; display: flex; gap: 2px; align-items: flex-end; height: 100%; }
+.bar-group span { flex: 1; border-radius: 3px 3px 0 0; transition: height 0.4s; }
+.bar-labels { display: flex; gap: 8px; justify-content: center; padding: 0 2px; margin-top: -6px; }
+.bar-labels div { flex: 1; min-width: 0; max-width: 64px; display: flex; flex-direction: column; align-items: center; gap: 2px; font-size: 11px; }
+
+footer { font-size: 12px; color: var(--muted); display: flex; flex-wrap: wrap; gap: 6px 16px; align-items: center; }
+</style>
+</head>
+<body>
+<div class="page">
+<div class="wrap">
+
+<header class="top">
+  <div class="title-row">
+    <h1>心动盲盒数据台</h1>
+    <span class="badge" id="demoBadge" hidden>示例数据</span>
+    <a class="btn primary" href="/overlays">
+      <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="13" rx="2"></rect><path d="M8 21h8"></path><path d="M12 17v4"></path><path d="m10 8.5 4 2.5-4 2.5z"></path></svg>OBS 叠加层
+    </a>
+  </div>
+  <div class="top-right">
+    <div role="group" aria-label="统计范围" class="seg" id="ranges"></div>
+    <a class="btn" id="exportBtn" href="/api/export.csv">
+      <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"></path><path d="m7 10 5 5 5-5"></path><path d="M5 21h14"></path></svg>导出 CSV
+    </a>
+    <button class="btn" type="button" id="loginBtn" hidden>
+      <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"></rect><rect x="14" y="3" width="7" height="7" rx="1"></rect><rect x="3" y="14" width="7" height="7" rx="1"></rect><path d="M14 14h3v3h-3zM20 14v.01M14 20h.01M17 20h4v-3"></path></svg><span id="loginText">扫码登录</span>
+    </button>
+    <button class="btn" type="button" id="roomBtn" hidden>
+      <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 3h5v5"></path><path d="M21 3l-7 7"></path><path d="M8 21H3v-5"></path><path d="M3 21l7-7"></path></svg>切换直播间
+    </button>
+    <button class="btn quit" type="button" id="quitBtn">
+      <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v10"></path><path d="M18.4 6.6a9 9 0 1 1-12.8 0"></path></svg>关闭程序
+    </button>
+  </div>
+</header>
+
+<section class="setup" id="setupCard" hidden aria-labelledby="setup-h">
+  <h2 id="setup-h">欢迎使用心动盲盒数据台</h2>
+  <p>先告诉程序要统计哪个直播间。直播间号就是直播间网址最后那串数字，也可以直接把直播间链接粘贴进来。</p>
+  <ol>
+    <li><b>1</b>填写直播间号</li>
+    <li><b>2</b>扫码登录 B 站（用小号即可）</li>
+    <li><b>3</b>开始统计，在 OBS 里添加叠加层</li>
+  </ol>
+  <form id="setupForm">
+    <input id="setupInput" inputmode="numeric" autocomplete="off" placeholder="例如 12345678，或 https://live.bilibili.com/12345678" aria-label="直播间号">
+    <button class="btn primary" type="submit" id="setupSave">开始使用</button>
+    <span class="msg" id="setupMsg" role="status"></span>
+  </form>
+</section>
+
+<section class="login-banner" id="loginBanner" hidden>
+  <div>
+    <b id="bannerTitle"></b>
+    <p id="bannerText"></p>
+  </div>
+  <button class="btn primary" type="button" id="bannerBtn"></button>
+</section>
+
+<section class="room" id="room" aria-label="直播间信息">
+  <a class="avatar loading" id="avatar" target="_blank" rel="noopener noreferrer" aria-label="打开直播间"></a>
+  <div class="room-info">
+    <div class="name-row">
+      <span class="uname loading" id="uname">正在读取主播信息…</span>
+      <span class="lvl num" id="lvl" hidden></span>
+      <span class="live-state" id="liveState" hidden><span class="dot" aria-hidden="true"></span><span id="liveText"></span></span>
+    </div>
+    <div class="room-title" id="roomTitle"></div>
+    <div class="room-meta" id="roomMeta"></div>
+    <form class="room-edit" id="roomForm" hidden>
+      <input id="roomInput" inputmode="numeric" autocomplete="off" placeholder="直播间号，或粘贴直播间链接" aria-label="新的直播间号">
+      <button class="btn primary" type="submit" id="roomSave">切换</button>
+      <button class="btn" type="button" id="roomCancel">取消</button>
+      <span class="msg" id="roomMsg" role="status"></span>
+    </form>
+  </div>
+  <div class="room-side">
+    <span class="k" id="durLabel">本场已播</span>
+    <span class="num dur" id="dur">--:--:--</span>
+    <span id="connText">正在连接…</span>
+  </div>
+</section>
+
+<section aria-label="核心指标" class="kpis" id="kpis"></section>
+
+<div class="row">
+  <section class="panel feed-panel" aria-labelledby="feed-h">
+    <div class="panel-head">
+      <h2 id="feed-h">实时盲盒流</h2>
+      <label class="check"><input type="checkbox" id="bigOnly">只看大奖</label>
+    </div>
+    <div class="feed" id="feed"></div>
+  </section>
+
+  <section class="panel rate-panel" aria-labelledby="rate-h">
+    <div class="panel-head baseline">
+      <h2 id="rate-h">档位爆率 · <span id="rateRange">本场</span></h2>
+      <span class="hint" id="rateHint"></span>
+    </div>
+    <div class="tiers">
+      <div class="tiers-head" aria-hidden="true"><span>礼物 · 单个价值（电池）</span><span>次数 · 出现率</span></div>
+      <div id="tiers"></div>
+    </div>
+    <div class="minis" id="tierMinis"></div>
+  </section>
+</div>
+
+<div class="row">
+  <section class="panel rank-panel" aria-labelledby="rank-h">
+    <div class="panel-head">
+      <h2 id="rank-h">送礼者排行</h2>
+      <div role="group" aria-label="排序方式" class="sorts" id="sorts"></div>
+    </div>
+    <div class="xscroll">
+      <table>
+        <thead>
+          <tr>
+            <th scope="col" class="l" style="width: 40px">#</th>
+            <th scope="col" class="l">用户</th>
+            <th scope="col">盒数</th>
+            <th scope="col">投入</th>
+            <th scope="col">开出</th>
+            <th scope="col">净盈亏</th>
+            <th scope="col">回报率</th>
+            <th scope="col">大奖</th>
+          </tr>
+        </thead>
+        <tbody id="senders"></tbody>
+      </table>
+    </div>
+    <p class="note"><span>投入 / 开出单位：电池。净盈亏为观众视角（开出 − 投入）。</span><button type="button" class="link-btn" id="moreBtn" hidden></button></p>
+  </section>
+
+  <section class="panel trend-panel" aria-labelledby="trend-h">
+    <div class="panel-head">
+      <h2 id="trend-h">历史趋势 · 近 <span id="trendN">10</span> 场</h2>
+      <div class="legend">
+        <span><i style="background: #5AA9FF"></i>投入</span>
+        <span><i style="background: var(--accent)"></i>开出价值</span>
+      </div>
+    </div>
+    <div role="img" aria-label="近几场投入与开出价值对比柱状图" class="bars" id="bars"></div>
+    <div aria-hidden="true" class="bar-labels" id="barLabels"></div>
+    <div class="minis" id="trendMinis" style="grid-template-columns: repeat(auto-fit, minmax(130px, 1fr))"></div>
+  </section>
+</div>
+
+<footer>
+  <span>数据来源：直播间长连接礼物消息（盲盒开出事件）</span>
+  <span>最近同步 <span class="num" id="lastSync">—</span></span>
+  <span class="num" id="version"></span>
+</footer>
+
+
+<div class="modal" id="loginModal" hidden>
+  <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="login-h">
+    <h2 id="login-h">扫码登录 B 站</h2>
+    <div id="loginScan">
+      <div class="qr" id="qrBox"><img id="qrImg" alt="登录二维码"><span class="over" id="qrOver" hidden></span></div>
+      <ol class="login-steps">
+        <li>1. 打开手机上的 <b>哔哩哔哩 App</b>（建议用小号）</li>
+        <li>2. 用 App 里的「扫一扫」扫描上面的二维码</li>
+        <li>3. 在手机上点「确认登录」</li>
+      </ol>
+    </div>
+    <div class="login-state" id="loginState" role="status"></div>
+    <div class="login-note">
+      <p><b>登录是安全的：</b>登录信息只保存在这台电脑上，只发给 B 站自己，不会上传到任何其他地方。程序只用它接收直播间的礼物消息，也不保存发弹幕、送礼物这类操作需要的凭证。</p>
+      <p><b>用什么账号：</b>随便注册一个普通 B 站小号就行，不用充值、不用开大会员，也不用是主播本人。为了安心，建议不要用存有 B 币或电池余额的主号。</p>
+      <p><b>随时可以退出：</b>点右上角「已登录」就能退出登录；也可以在手机 B 站 App 的登录设备管理里让它下线。</p>
+    </div>
+    <div class="actions">
+      <button class="btn" type="button" id="qrRefresh" hidden>刷新二维码</button>
+      <button class="btn quit" type="button" id="logoutBtn" hidden>退出登录</button>
+      <button class="btn" type="button" id="loginClose">关闭</button>
+    </div>
+  </div>
+</div>
+
+<div class="closed" id="closed" hidden>
+  <div>
+    <h2>程序已关闭</h2>
+    <p>OBS 叠加层也已停止更新。<br>重新打开 DokiDokiBox.exe 后刷新本页面即可继续使用。</p>
+  </div>
+</div>
+
+</div>
+</div>
+
+<script src="/static/common.js"></script>
+<script>
+const $ = (id) => document.getElementById(id);
+const GOLD = '#F5C451', MUTED = '#9AA0AA';
+const RANGES = [['session', '本场'], ['today', '今日'], ['7d', '近 7 天'], ['30d', '近 30 天']];
+const SORTS = [['boxes', '按盒数'], ['net', '按净盈亏'], ['big', '按大奖次数']];
+
+const S = {
+  range: 'session', // 每次打开都从「本场」开始，不记住上次的选择
+  sort: GT.store.get('sort', 'boxes'),
+  bigOnly: GT.store.get('bigOnly', '0') === '1',
+  showAll: false,
+};
+let data = null;
+let clockOffset = 0;
+let reqSeq = 0;
+let seenFeed = null;
+let accent = '#FF6F9C';
+
+// 档位配色参照魔兽世界装备品质，从高到低：神器、传说、史诗、精良、优秀、普通、粗糙
+// （精良蓝比原版 #0070DD 略提亮以便看清；第 5 档按主播偏好用柔和粉色代替优秀绿）
+const TIER_COLORS = ['#E6CC80', '#FF8000', '#A335EE', '#2F8BF0', '#EC8FB5', '#FFFFFF', '#9D9D9D'];
+const tierColor = (i) => TIER_COLORS[Math.min(i, TIER_COLORS.length - 1)];
+
+function renderControls() {
+  $('ranges').innerHTML = RANGES.map(([id, label]) =>
+    `<button type="button" data-range="${id}" aria-pressed="${S.range === id}">${label}</button>`).join('');
+  $('sorts').innerHTML = SORTS.map(([id, label]) =>
+    `<button type="button" data-sort="${id}" aria-pressed="${S.sort === id}">${label}</button>`).join('');
+  $('bigOnly').checked = S.bigOnly;
+  $('exportBtn').href = '/api/export.csv?range=' + S.range;
+}
+
+$('ranges').addEventListener('click', (e) => {
+  const b = e.target.closest('button[data-range]');
+  if (!b) return;
+  S.range = b.dataset.range;
+  seenFeed = null;
+  renderControls();
+  load();
+});
+$('sorts').addEventListener('click', (e) => {
+  const b = e.target.closest('button[data-sort]');
+  if (!b) return;
+  S.sort = b.dataset.sort;
+  GT.store.set('sort', S.sort);
+  renderControls();
+  load();
+});
+$('bigOnly').addEventListener('change', (e) => {
+  S.bigOnly = e.target.checked;
+  GT.store.set('bigOnly', S.bigOnly ? '1' : '0');
+  seenFeed = null;
+  load();
+});
+// 修改直播间：服务端会先确认直播间存在，再写入 config.json 并重新连接
+$('roomBtn').addEventListener('click', () => {
+  if (!$('roomForm').hidden) { $('roomForm').hidden = true; return; }
+  $('roomForm').hidden = false;
+  $('roomInput').value = data ? data.meta.roomId || '' : '';
+  setRoomMsg('');
+  $('roomInput').focus();
+  $('roomInput').select();
+});
+$('roomCancel').addEventListener('click', () => { $('roomForm').hidden = true; });
+function setRoomMsg(text, bad = false) {
+  $('roomMsg').textContent = text;
+  $('roomMsg').className = 'msg' + (bad ? ' bad' : '');
+}
+$('setupForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const room = $('setupInput').value.trim();
+  const msg = (text, bad = false) => { $('setupMsg').textContent = text; $('setupMsg').className = 'msg' + (bad ? ' bad' : ''); };
+  if (!room) return msg('请先填写直播间号', true);
+  $('setupSave').disabled = true;
+  msg('正在检查直播间…');
+  try {
+    const res = await fetch('/api/room', {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ room }),
+    });
+    if (!res.ok) throw new Error((await res.text()).trim());
+    msg('');
+    seenFeed = null;
+    load();
+  } catch (err) {
+    msg(err.message || '设置失败，请确认程序正在运行', true);
+  } finally {
+    $('setupSave').disabled = false;
+  }
+});
+
+$('roomForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  $('roomSave').disabled = true;
+  setRoomMsg('正在检查直播间…');
+  try {
+    const res = await fetch('/api/room', {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ room: $('roomInput').value }),
+    });
+    if (!res.ok) throw new Error((await res.text()).trim());
+    $('roomForm').hidden = true;
+    seenFeed = null;
+    load();
+  } catch (err) {
+    setRoomMsg(err.message || '切换失败，请确认程序正在运行', true);
+  } finally {
+    $('roomSave').disabled = false;
+  }
+});
+
+// 扫码登录：服务端向 B 站申请二维码，每 2 秒查询一次扫码状态，确认后自动保存并重新连接
+let loginTimer = null;
+function setLoginState(text, cls = '') {
+  $('loginState').textContent = text;
+  $('loginState').className = 'login-state ' + cls;
+}
+function stopLoginPoll() {
+  clearInterval(loginTimer);
+  loginTimer = null;
+}
+function post(url) {
+  return fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+}
+async function openLogin() {
+  $('loginModal').hidden = false;
+  const name = data && data.meta.login;
+  $('logoutBtn').hidden = !name;
+  if (name) {
+    // 已登录：显示账号，可以退出或换号
+    $('loginScan').hidden = true;
+    $('qrRefresh').hidden = false;
+    $('qrRefresh').textContent = '换个账号';
+    setLoginState(`已登录：${name}`, 'ok');
+    return;
+  }
+  startQR();
+}
+async function startQR() {
+  stopLoginPoll();
+  $('loginScan').hidden = false;
+  $('qrRefresh').hidden = true;
+  $('qrRefresh').textContent = '刷新二维码';
+  $('qrBox').classList.add('dim');
+  $('qrOver').hidden = true;
+  setLoginState('正在获取二维码…');
+  try {
+    const res = await post('/api/login/start');
+    if (!res.ok) throw new Error((await res.text()).trim());
+    $('qrImg').src = '/api/login/qr.png?t=' + Date.now();
+    $('qrBox').classList.remove('dim');
+    setLoginState('请用手机 B 站 App 扫码');
+    loginTimer = setInterval(pollLogin, 2000);
+  } catch (err) {
+    setLoginState('获取二维码失败：' + (err.message || '请检查网络'), 'bad');
+    $('qrRefresh').hidden = false;
+  }
+}
+async function pollLogin() {
+  try {
+    const res = await post('/api/login/poll');
+    if (!res.ok) throw new Error((await res.text()).trim());
+    const r = await res.json();
+    if (r.state === 'scanned') {
+      setLoginState('已扫码，请在手机上点「确认登录」');
+    } else if (r.state === 'expired') {
+      stopLoginPoll();
+      $('qrBox').classList.add('dim');
+      $('qrOver').textContent = '二维码已过期';
+      $('qrOver').hidden = false;
+      setLoginState('二维码已过期，请点「刷新二维码」', 'bad');
+      $('qrRefresh').hidden = false;
+    } else if (r.state === 'done') {
+      stopLoginPoll();
+      $('qrBox').classList.add('dim');
+      $('qrOver').textContent = '✓ 登录成功';
+      $('qrOver').hidden = false;
+      setLoginState(`登录成功：${r.uname}，正在重新连接直播间…`, 'ok');
+      load();
+      setTimeout(closeLogin, 1800);
+    }
+  } catch (err) {
+    // 出错后停止查询，避免下一次查询的「二维码已过期」盖掉真正的原因
+    stopLoginPoll();
+    setLoginState(err.message || '查询扫码状态失败，请确认程序正在运行', 'bad');
+    $('qrBox').classList.add('dim');
+    $('qrRefresh').hidden = false;
+  }
+}
+function closeLogin() {
+  stopLoginPoll();
+  $('loginModal').hidden = true;
+}
+$('loginBtn').addEventListener('click', openLogin);
+$('bannerBtn').addEventListener('click', openLogin);
+
+$('qrRefresh').addEventListener('click', startQR);
+$('loginClose').addEventListener('click', closeLogin);
+$('loginModal').addEventListener('click', (e) => { if (e.target === $('loginModal')) closeLogin(); });
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !$('loginModal').hidden) closeLogin(); });
+$('logoutBtn').addEventListener('click', async () => {
+  await post('/api/logout').catch(() => {});
+  closeLogin();
+  load();
+});
+
+$('quitBtn').addEventListener('click', async () => {
+  try { await fetch('/api/shutdown', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' }); } catch {}
+  $('closed').hidden = false;
+});
+
+$('moreBtn').addEventListener('click', () => {
+  S.showAll = !S.showAll;
+  if (data) renderSenders(data);
+});
+
+async function load() {
+  const seq = ++reqSeq;
+  try {
+    const q = new URLSearchParams({ range: S.range, sort: S.sort, bigOnly: S.bigOnly ? '1' : '0' });
+    const res = await fetch('/api/stats?' + q);
+    const d = await res.json();
+    if (seq !== reqSeq) return;
+    data = d;
+    clockOffset = d.meta.serverNow - Date.now();
+    render(d);
+  } catch (err) {
+    $('connText').textContent = '无法连接本地服务，请确认程序正在运行';
+    $('connText').className = 'bad';
+  }
+}
+
+function render(d) {
+  if (d.meta.accent) accent = d.meta.accent;
+  document.documentElement.style.setProperty('--accent', accent);
+  renderHeader(d);
+  renderKpis(d);
+  renderFeed(d);
+  renderTiers(d);
+  renderSenders(d);
+  renderTrend(d);
+  $('lastSync').textContent = GT.clock(d.meta.lastEventAt);
+  $('version').textContent = d.meta.version ? 'v' + d.meta.version : '';
+}
+
+function renderHeader(d) {
+  const m = d.meta;
+  $('demoBadge').hidden = !m.demo;
+  // 第一次使用还没设置直播间：只显示设置卡片，其他直播间相关的内容先隐藏
+  const needRoom = !m.demo && !m.roomId;
+  $('setupCard').hidden = !needRoom;
+  $('room').hidden = needRoom;
+  $('roomBtn').hidden = m.demo || needRoom; // 示例模式不能切换直播间
+  $('loginBtn').hidden = m.demo || needRoom;
+  $('loginBtn').classList.toggle('warn', !m.login);
+  $('loginText').textContent = m.login ? `已登录 · ${m.login}` : '扫码登录';
+  $('loginBanner').hidden = m.demo || needRoom || m.login;
+  if (!m.login) {
+    $('bannerTitle').textContent = '登录 B 站后才能统计盲盒';
+    $('bannerText').textContent = 'B 站只把礼物消息推送给已登录的观众，所以需要用手机 B 站 App 扫码登录一次。随便一个普通小号就行，不用充值，也不用是主播本人；登录信息只存在这台电脑上，只用来接收直播间消息。';
+    $('bannerBtn').textContent = '扫码登录';
+  }
+  $('liveState').classList.toggle('on', m.live);
+  $('room').classList.toggle('on', m.live);
+  $('liveText').textContent = m.live ? '直播中' : '未开播';
+  renderRoom(m);
+  const conn = $('connText');
+  conn.textContent = m.statusMsg || '正在连接…';
+  conn.className = m.status === 'error' ? 'bad' : m.status === 'limited' ? 'warn' : '';
+  conn.title = m.status === 'limited' ? 'B 站只把礼物消息推送给已登录的观众，请点右上角「扫码登录」，用一个普通小号即可。' : '';
+  tick();
+}
+
+let faceShown = null;
+function renderRoom(m) {
+  const r = m.room || {};
+  const room = m.realRoom || m.roomId;
+  const link = room && !m.demo ? `https://live.bilibili.com/${room}` : '';
+  // 刚打开或刚切换直播间时还没读到主播资料，显示加载状态，而不是「?」头像和重复的直播间号
+  const loading = !r.uname;
+  const name = r.uname || '';
+  $('uname').textContent = loading ? (m.status === 'error' ? '无法读取主播信息' : '正在读取主播信息…') : name;
+  $('uname').classList.toggle('loading', loading);
+  $('liveState').hidden = loading;
+  $('lvl').hidden = !r.level;
+  $('lvl').textContent = 'UL ' + (r.level || '');
+  $('roomTitle').textContent = m.title || '';
+  $('roomTitle').title = m.title || '';
+
+  // 头像：没有头像或加载失败时显示昵称首字；资料还没读到时显示灰色占位
+  const av = $('avatar');
+  if (link) av.href = link; else av.removeAttribute('href');
+  av.classList.toggle('loading', loading);
+  const key = (r.face || '') + '|' + name;
+  if (faceShown !== key) {
+    faceShown = key;
+    av.textContent = loading ? '' : Array.from(name)[0];
+    if (r.face) {
+      const img = new Image();
+      img.alt = '';
+      img.referrerPolicy = 'no-referrer';
+      img.onload = () => { if (faceShown === key) { av.textContent = ''; av.appendChild(img); } };
+      img.src = r.face + '@128w_128h.webp';
+    }
+  }
+
+  const items = [];
+  if (m.roomId) {
+    const id = `<span class="num">${m.roomId}</span>`;
+    const long = m.realRoom && m.realRoom !== m.roomId ? `（长号 <span class="num">${m.realRoom}</span>）` : '';
+    items.push(`<span>直播间 ${link ? `<a href="${link}" target="_blank" rel="noopener noreferrer">${id}</a>` : id}${long}</span>`);
+  }
+  if (r.area) items.push(`<span>${GT.esc(r.area)}</span>`);
+  if (r.followers) items.push(`<span>粉丝 <span class="num">${GT.num(r.followers)}</span></span>`);
+  if (r.online && m.live) items.push(`<span>人气 <span class="num">${GT.num(r.online)}</span></span>`);
+  $('roomMeta').innerHTML = items.join('');
+}
+
+function tick() {
+  if (!data) return;
+  const m = data.meta;
+  if (!m.sessionStart) {
+    $('durLabel').textContent = '本场已播';
+    $('dur').textContent = '--:--:--';
+    return;
+  }
+  if (m.sessionOffline) {
+    // 未开播时收到的盲盒单独算一段，这里显示开始时间而不是计时
+    $('durLabel').textContent = '未开播 · 记录开始于';
+    $('dur').textContent = GT.clock(m.sessionStart);
+    return;
+  }
+  const running = !m.sessionEnd;
+  $('durLabel').textContent = running ? '本场已播' : '上场时长';
+  const end = running ? Date.now() + clockOffset : m.sessionEnd;
+  $('dur').textContent = GT.hms(end - m.sessionStart);
+}
+setInterval(tick, 1000);
+
+function renderKpis(d) {
+  const s = d.summary, L = d.rangeLabel;
+  const kpis = [
+    { label: `${L}盲盒数`, value: GT.num(s.boxes), sub: `送礼人数 ${GT.num(s.users)}`, color: 'var(--text)' },
+    { label: '观众投入', value: GT.num(s.spent), sub: '电池', color: 'var(--text)' },
+    { label: '开出总价值', value: GT.num(s.got), sub: '电池 · 计入主播流水', color: accent },
+    { label: '观众净盈亏', value: GT.signed(s.net), sub: '电池（开出 − 投入）', color: GT.pnlColor(s.net, 'var(--text)') },
+    { label: '整体回报率', value: s.spent > 0 ? GT.pct(s.ratio) : '—', sub: '开出 ÷ 投入', color: 'var(--text)' },
+  ];
+  $('kpis').innerHTML = kpis.map((k) => `
+    <div class="kpi">
+      <div class="label">${k.label}</div>
+      <div class="num value" style="color: ${k.color}">${k.value}</div>
+      <div class="sub">${k.sub}</div>
+    </div>`).join('');
+}
+
+function renderFeed(d) {
+  const el = $('feed');
+  if (!d.hasRange) {
+    el.innerHTML = `<div class="empty">还没有直播场次记录。开播后会自动开始统计，也可以切换到「今日」查看。</div>`;
+    seenFeed = new Set();
+    return;
+  }
+  if (!d.feed.length) {
+    el.innerHTML = `<div class="empty">${S.bigOnly ? `${d.rangeLabel}暂未开出大奖` : `${d.rangeLabel}还没有盲盒记录`}</div>`;
+    seenFeed = new Set();
+    return;
+  }
+  const keyOf = (f) => `${f.ts}|${f.user}|${f.gift}|${f.num}`;
+  const first = seenFeed === null;
+  const next = new Set();
+  el.innerHTML = d.feed.map((f) => {
+    const k = keyOf(f);
+    next.add(k);
+    const fresh = !first && !seenFeed.has(k);
+    const color = tierColor(f.tier);
+    return `
+      <div class="feed-row${f.big ? ' big' : ''}${fresh ? ' fresh' : ''}">
+        <span class="num time">${GT.clock(f.ts)}</span>
+        <div class="main">
+          <span class="line1">${GT.esc(f.user)}<span style="color: var(--muted)"> 开出 </span><span style="color: ${color}; font-weight: 500">${GT.esc(f.gift)}</span>${f.num > 1 ? `<span class="num" style="color: var(--muted)"> ×${f.num}</span>` : ''}</span>
+          <span class="line2"><span class="num">${f.tier + 1}</span> · 价值 <span class="num">${GT.num(f.value)}</span> 电池</span>
+        </div>
+        <span class="num delta" style="color: ${GT.pnlColor(f.delta, MUTED)}">${GT.signed(f.delta)}</span>
+      </div>`;
+  }).join('');
+  seenFeed = next;
+}
+
+function renderTiers(d) {
+  $('rateRange').textContent = d.rangeLabel;
+  $('rateHint').innerHTML = `样本 <span class="num">${GT.num(d.summary.boxes)}</span> 盒`;
+  const el = $('tiers');
+  if (!d.tiers.length) {
+    el.innerHTML = `<div class="empty">暂无数据</div>`;
+  } else {
+    const maxRate = Math.max(...d.tiers.map((t) => t.rate)) || 1;
+    el.innerHTML = d.tiers.map((t, i) => {
+      const color = tierColor(i);
+      const w = Math.max(2, Math.round((t.rate / maxRate) * 100));
+      return `
+        <div class="tier${t.count ? '' : ' zero'}">
+          <span class="rank num" style="color: ${color}; background: color-mix(in srgb, ${color} 16%, transparent)">${i + 1}</span>
+          <span class="gift"><span class="n" title="${GT.esc(t.name)}">${GT.esc(t.name)}</span><span class="sub">价值 <span class="num">${GT.num(t.value)}</span></span></span>
+          <span class="track" aria-hidden="true"><span class="fill" style="width: ${t.count ? w : 0}%; background: ${color}"></span></span>
+          <span class="stat"><span class="c"><span class="num">${GT.num(t.count)}</span><small>次</small></span><span class="sub num">${GT.pct(t.rate, 2)}</span></span>
+        </div>`;
+    }).join('');
+  }
+  const minis = [
+    { k: `高档位（≥${GT.num(d.meta.bigPrize)}）合计`, v: `${GT.num(d.bigCount)} 次 · ${d.summary.boxes ? GT.pct(d.bigRate, 2) : '—'}`, color: GOLD },
+    { k: '距上次大奖', v: d.hasBig ? `${GT.num(d.sinceBig)} 盒` : (d.summary.boxes ? `${GT.num(d.sinceBig)} 盒 · 未出` : '—') },
+    { k: '最长连续未出大奖', v: d.summary.boxes ? `${GT.num(d.longestDrought)} 盒` : '—' },
+  ];
+  $('tierMinis').innerHTML = minis.map((m) =>
+    `<div class="mini"><span class="k">${m.k}</span><span class="num v"${m.color ? ` style="color: ${m.color}"` : ''}>${m.v}</span></div>`).join('');
+}
+
+function renderSenders(d) {
+  const list = S.showAll ? d.senders : d.senders.slice(0, 10);
+  $('senders').innerHTML = list.length ? list.map((u, i) => `
+    <tr>
+      <td class="num l" style="color: ${i === 0 ? GOLD : i < 3 ? accent : MUTED}; font-weight: 700">${i + 1}</td>
+      <td class="l">${GT.esc(u.name)}</td>
+      <td class="num">${GT.num(u.boxes)}</td>
+      <td class="num">${GT.num(u.spent)}</td>
+      <td class="num">${GT.num(u.got)}</td>
+      <td class="num" style="color: ${GT.pnlColor(u.net, 'var(--text)')}; font-weight: 700">${GT.signed(u.net)}</td>
+      <td class="num">${GT.pct(u.ratio)}</td>
+      <td class="num" style="color: ${GOLD}">${u.big}</td>
+    </tr>`).join('') : `<tr><td colspan="8" class="empty">暂无送礼记录</td></tr>`;
+  const more = $('moreBtn');
+  more.hidden = d.senders.length <= 10;
+  more.textContent = S.showAll ? '收起' : `显示全部 ${d.senderTotal > d.senders.length ? `前 ${d.senders.length}` : d.senderTotal} 人`;
+}
+
+function renderTrend(d) {
+  const bars = d.sessions;
+  $('trendN').textContent = bars.length || 10;
+  if (!bars.length) {
+    $('bars').innerHTML = `<div class="empty" style="align-self: center">完成第一场直播后显示</div>`;
+    $('barLabels').innerHTML = '';
+  } else {
+    const maxV = Math.max(...bars.map((b) => Math.max(b.spent, b.got))) || 1;
+    const h = (v) => Math.max(2, Math.round((v / maxV) * 210)) + 'px';
+    $('bars').innerHTML = bars.map((b) => `
+      <div class="bar-group" title="${b.date}${b.current ? '（本场）' : ''} · ${GT.num(b.boxes)} 盒 · 投入 ${GT.num(b.spent)} · 开出 ${GT.num(b.got)}">
+        <span style="height: ${h(b.spent)}; background: #5AA9FF"></span>
+        <span style="height: ${h(b.got)}; background: ${accent}"></span>
+      </div>`).join('');
+    $('barLabels').innerHTML = bars.map((b) => `
+      <div>
+        <span class="num" style="color: ${b.current ? 'var(--text)' : MUTED}">${b.date}</span>
+        <span class="num" style="color: ${b.ratio >= d.sessionsRatio ? accent : MUTED}">${Math.round(b.ratio * 100)}%</span>
+      </div>`).join('');
+  }
+  const n = bars.length || 10;
+  $('trendMinis').innerHTML = `
+    <div class="mini"><span class="k">${n} 场累计盒数</span><span class="num v">${GT.num(d.sessionsBoxes)}</span></div>
+    <div class="mini"><span class="k">${n} 场加权回报率</span><span class="num v">${d.sessionsBoxes ? GT.pct(d.sessionsRatio) : '—'}</span></div>`;
+}
+
+renderControls();
+load();
+GT.connect({ onChange: load });
+</script>
+</body>
+</html>
