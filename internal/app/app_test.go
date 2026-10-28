@@ -197,3 +197,19 @@ func TestStartWithoutRoom(t *testing.T) {
 		t.Fatal("设置直播间后应写入 room-5 目录")
 	}
 }
+
+func TestOverlaySaveWithoutDataDir(t *testing.T) {
+	// 首次运行还没设置直播间：data/ 不存在时也要能保存叠加层设置
+	data := filepath.Join(t.TempDir(), "data")
+	app, err := New(config.Default(), "", data, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer app.Close()
+	if _, err := app.SetOverlaySettings(OverlaySettings{Title: "测试"}); err != nil {
+		t.Fatalf("保存失败：%v", err)
+	}
+	if got := loadOverlaySettings(data); got.Title != "测试" {
+		t.Fatalf("重新读取的设置不对：%+v", got)
+	}
+}

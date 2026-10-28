@@ -34,7 +34,7 @@ import (
 )
 
 // version 是当前版本号，显示在程序窗口和主播后台底部。
-const version = "0.0.1-beta"
+const version = "0.0.2-beta"
 
 //go:embed web
 var webFS embed.FS

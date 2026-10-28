@@ -82,6 +82,10 @@ func (a *App) SetOverlaySettings(s OverlaySettings) (OverlaySettings, error) {
 	if err != nil {
 		return s, err
 	}
+	// 还没设置直播间时 data/ 可能还不存在
+	if err := os.MkdirAll(a.dataDir, 0o755); err != nil {
+		return s, err
+	}
 	p := overlayPath(a.dataDir)
 	if err := os.WriteFile(p+".tmp", b, 0o644); err != nil {
 		return s, err
