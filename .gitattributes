@@ -1,0 +1,6 @@
+# 统一换行符：网页文件会打包进 exe，换行符不同会导致自己编译的 exe 与发布版不一致
+* text=auto eol=lf
+*.bat text eol=crlf
+*.ico binary
+*.png binary
+*.syso binary

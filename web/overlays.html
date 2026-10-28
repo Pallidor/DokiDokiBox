@@ -1,0 +1,274 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>OBS 叠加层 · 心动盲盒数据台</title>
+<link rel="stylesheet" href="/static/common.css">
+<style>
+body { background: var(--bg); color: var(--text); }
+.wrap { max-width: 1120px; margin: 0 auto; padding: 28px 24px 48px; display: flex; flex-direction: column; gap: 20px; }
+.back { font-size: 14px; text-decoration: none; display: inline-flex; align-items: center; gap: 6px; }
+h1 { margin: 8px 0 0; font-size: 26px; }
+.lead { margin: 6px 0 0; color: var(--sub); font-size: 14px; line-height: 1.7; }
+.panel { background: var(--panel); border: 1px solid var(--border); border-radius: 14px; padding: 20px; display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+h2 { margin: 0; font-size: 17px; }
+
+.url { display: flex; gap: 8px; flex-wrap: wrap; }
+.url input { flex: 1 1 320px; min-width: 0; min-height: 44px; padding: 0 14px; border-radius: 10px; border: 1px solid var(--chip); background: var(--inset); color: var(--text); font-family: var(--mono); font-size: 14px; }
+.btn { min-height: 44px; padding: 0 18px; border-radius: 10px; border: 1px solid var(--chip); background: #22262E; color: var(--text); font-size: 14px; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; }
+.btn:hover { border-color: #4A505D; }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: #17090E; font-weight: 700; }
+.btn.primary:hover { filter: brightness(1.08); }
+.steps { margin: 0; padding: 0; list-style: none; display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; }
+.steps li { background: var(--inset); border-radius: 10px; padding: 12px 14px; font-size: 13px; color: var(--sub); line-height: 1.6; display: flex; gap: 10px; }
+.steps b { flex: none; width: 22px; height: 22px; border-radius: 50%; background: #2A2E38; color: var(--text); font-size: 12px; display: inline-flex; align-items: center; justify-content: center; }
+.steps strong { color: var(--text); font-weight: 600; }
+
+.main { display: grid; grid-template-columns: minmax(0, 1fr) 480px; gap: 20px; align-items: start; }
+@media (max-width: 920px) { .main { grid-template-columns: minmax(0, 1fr); } }
+.field { display: flex; flex-direction: column; gap: 10px; }
+.field + .field { padding-top: 16px; border-top: 1px solid var(--line); }
+.field-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.field label, .field .k { font-size: 14px; font-weight: 600; }
+.field .v { font-size: 13px; color: var(--sub); }
+.text { min-height: 44px; padding: 0 14px; border-radius: 10px; border: 1px solid var(--chip); background: var(--inset); color: var(--text); font-size: 14px; font-family: inherit; }
+.text:focus, .url input:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+.swatches { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.swatch { width: 36px; height: 36px; border-radius: 50%; border: 2px solid transparent; cursor: pointer; padding: 0; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12); }
+.swatch[aria-pressed="true"] { border-color: #FFFFFF; box-shadow: 0 0 0 2px var(--bg) inset; }
+.custom { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; color: var(--sub); cursor: pointer; }
+.custom input { width: 40px; height: 36px; padding: 0; border: 1px solid var(--chip); border-radius: 8px; background: none; cursor: pointer; }
+input[type="range"] { width: 100%; accent-color: var(--accent); height: 28px; }
+.toggles { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 8px; }
+.toggle { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 48px; padding: 0 14px; border-radius: 10px; background: var(--inset); cursor: pointer; font-size: 14px; }
+.toggle input { appearance: none; width: 40px; height: 22px; border-radius: 11px; background: var(--chip); position: relative; cursor: pointer; flex: none; margin: 0; }
+.toggle input::after { content: ''; position: absolute; top: 3px; left: 3px; width: 16px; height: 16px; border-radius: 50%; background: #FFFFFF; }
+/* 首次读取设置之后才开启动画，避免打开页面时开关从关到开闪一下 */
+.ready .toggle input { transition: background 0.2s; }
+.ready .toggle input::after { transition: transform 0.2s; }
+.toggle input:checked { background: var(--accent); }
+.toggle input:checked::after { transform: translateX(18px); }
+.toggle input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.actions { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding-top: 16px; border-top: 1px solid var(--line); }
+.save { font-size: 13px; color: var(--sub); display: inline-flex; align-items: center; gap: 6px; }
+.save.ok { color: var(--profit); }
+.save.bad { color: var(--danger); }
+
+.preview-panel { position: sticky; top: 16px; }
+.layout-seg button { min-height: 40px; font-size: 14px; }
+.seg { display: flex; background: var(--inset); border-radius: 10px; padding: 4px; gap: 4px; }
+.seg button { flex: 1; min-height: 34px; border: 0; border-radius: 7px; font-size: 13px; cursor: pointer; background: transparent; color: var(--sub); }
+.seg button[aria-pressed="true"] { background: #2A2E38; color: #FFFFFF; }
+.stage { border-radius: 12px; padding: 20px; display: flex; justify-content: center; overflow: auto; }
+.stage.checker {
+  background-color: #2A2E38;
+  background-image: linear-gradient(45deg, #343946 25%, transparent 25%), linear-gradient(-45deg, #343946 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #343946 75%), linear-gradient(-45deg, transparent 75%, #343946 75%);
+  background-size: 20px 20px; background-position: 0 0, 0 10px, 10px -10px, -10px 0;
+}
+.stage.dark { background: linear-gradient(135deg, #1B2A3A, #3A2433); }
+.stage.light { background: linear-gradient(135deg, #DCE7F3, #F6E3EA); }
+iframe { border: 0; display: block; background: transparent; flex: none; }
+.preview-note { font-size: 12px; color: var(--muted); margin: 0; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div>
+    <a class="back" href="/"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"></path></svg>返回主播后台</a>
+    <h1>OBS 叠加层 · 本场战报</h1>
+    <p class="lead">实时显示本场盲盒数、观众净盈亏、最近大奖和欧皇榜。背景透明，可以直接叠在直播画面上。</p>
+  </div>
+
+  <section class="panel" aria-labelledby="add-h">
+    <h2 id="add-h">添加到 OBS</h2>
+    <div class="url"><input readonly id="statsUrl" aria-label="叠加层地址"><button class="btn primary" id="copyBtn" type="button">复制地址</button></div>
+    <ol class="steps">
+      <li><b>1</b><span>在 OBS 的「来源」里点 <strong>+</strong>，选择 <strong>浏览器</strong></span></li>
+      <li><b>2</b><span>粘贴上面的地址，宽度填 <strong class="num">420</strong>，高度填 <strong class="num">600</strong>（简易版填 <strong class="num">200</strong>）</span></li>
+      <li><b>3</b><span>在下方调整外观，OBS 里<strong>立即生效</strong>，不需要重新粘贴地址</span></li>
+    </ol>
+  </section>
+
+  <div class="main">
+    <section class="panel" aria-labelledby="set-h">
+      <h2 id="set-h">外观设置</h2>
+
+      <div class="field">
+        <span class="k" id="layout-k">版式</span>
+        <div class="seg layout-seg" role="group" aria-labelledby="layout-k" id="layoutSeg">
+          <button type="button" data-layout="full" aria-pressed="true">完全版</button>
+          <button type="button" data-layout="simple" aria-pressed="false">简易版</button>
+        </div>
+        <span class="v" id="layoutHint"></span>
+      </div>
+
+      <div class="field">
+        <label for="title">标题</label>
+        <input class="text" id="title" maxlength="24" placeholder="心动盲盒 · 本场战报">
+      </div>
+
+      <div class="field">
+        <span class="k" id="accent-k">主题色</span>
+        <div class="swatches" role="group" aria-labelledby="accent-k" id="swatches">
+          <label class="custom"><input type="color" id="customColor" value="#FF6F9C">自定义</label>
+        </div>
+      </div>
+
+      <div class="field">
+        <div class="field-head"><label for="opacity">背景不透明度</label><span class="v num" id="opacityV">82%</span></div>
+        <input type="range" id="opacity" min="0" max="100" step="5" value="82">
+      </div>
+
+      <div class="field" id="fieldShow">
+        <span class="k">显示内容</span>
+        <div class="toggles">
+          <label class="toggle">直播时长<input type="checkbox" id="showDuration"></label>
+          <label class="toggle" data-full>最近大奖<input type="checkbox" id="showWins"></label>
+          <label class="toggle" data-full>欧皇榜<input type="checkbox" id="showLucky"></label>
+          <label class="toggle" data-full>距上次大奖盒数<input type="checkbox" id="showSince"></label>
+        </div>
+      </div>
+
+      <div class="actions">
+        <span class="save" id="saveState" role="status">修改后自动保存</span>
+        <button class="btn" type="button" id="resetBtn">恢复默认</button>
+      </div>
+    </section>
+
+    <section class="panel preview-panel" aria-labelledby="pre-h">
+      <div class="field-head"><h2 id="pre-h">实时预览</h2><span class="v">和 OBS 中显示的一致</span></div>
+      <div class="seg" role="group" aria-label="预览背景" id="bgSeg">
+        <button type="button" data-bg="checker" aria-pressed="true">透明</button>
+        <button type="button" data-bg="dark">深色画面</button>
+        <button type="button" data-bg="light">浅色画面</button>
+      </div>
+      <div class="stage checker" id="stage"><iframe id="frame" width="420" height="600" title="本场战报预览"></iframe></div>
+      <p class="preview-note">本场还没有数据时，大奖和欧皇榜会显示占位文字。</p>
+    </section>
+  </div>
+</div>
+
+<script src="/static/common.js"></script>
+<script>
+const $ = (id) => document.getElementById(id);
+const COLORS = [
+  ['#FF6F9C', '粉'], ['#F5C451', '金'], ['#FF8000', '橙'], ['#A335EE', '紫'],
+  ['#2F8BF0', '蓝'], ['#4FC3C8', '青'], ['#E8EAED', '白'],
+];
+const TOGGLES = ['showDuration', 'showWins', 'showLucky', 'showSince'];
+const DEFAULTS = { layout: 'full', accent: '', opacity: 0.82, title: '', showDuration: true, showWins: true, showLucky: true, showSince: true };
+
+const url = location.origin + '/overlay/stats';
+$('statsUrl').value = url;
+$('frame').src = url;
+let S = null;
+let timer = null;
+let version = 0; // 每次修改加 1，用于判断保存期间是否又有新修改
+
+$('copyBtn').addEventListener('click', async () => {
+  const input = $('statsUrl');
+  try { await navigator.clipboard.writeText(input.value); } catch { input.select(); document.execCommand('copy'); }
+  $('copyBtn').textContent = '已复制';
+  setTimeout(() => { $('copyBtn').textContent = '复制地址'; }, 1500);
+});
+
+$('swatches').insertAdjacentHTML('afterbegin', COLORS.map(([c, name]) =>
+  `<button type="button" class="swatch" data-color="${c}" style="background: ${c}" aria-label="${name}色" aria-pressed="false"></button>`).join(''));
+$('customColor').addEventListener('input', (e) => update({ accent: e.target.value.toUpperCase() }, false));
+
+function renderSwatches() {
+  const cur = (S.accent || '').toUpperCase();
+  $('swatches').querySelectorAll('[data-color]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.color === cur)));
+  // 正在用取色器选色时不改它的值，否则取色器会被关掉
+  if (document.activeElement !== $('customColor')) $('customColor').value = cur || '#FF6F9C';
+}
+$('swatches').addEventListener('click', (e) => {
+  const b = e.target.closest('button[data-color]');
+  if (b) update({ accent: b.dataset.color });
+});
+
+function renderForm() {
+  const simple = S.layout === 'simple';
+  $('layoutSeg').querySelectorAll('button').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.layout === S.layout)));
+  $('layoutHint').textContent = simple
+    ? '只显示标题、盲盒数和观众净盈亏，适合放在画面角落。OBS 里高度可以改成 200。'
+    : '显示标题、直播时长、盲盒数、观众净盈亏、最近大奖、欧皇榜和距上次大奖盒数。';
+  // 简易版只用得到标题和「直播时长」开关
+  $('fieldShow').querySelectorAll('[data-full]').forEach((el) => { el.hidden = simple; });
+  if (document.activeElement !== $('title')) $('title').value = S.title;
+  if (document.activeElement !== $('opacity')) $('opacity').value = Math.round(S.opacity * 100);
+  $('opacityV').textContent = Math.round(S.opacity * 100) + '%';
+  TOGGLES.forEach((k) => { $(k).checked = S[k]; });
+  document.documentElement.style.setProperty('--accent', S.accent || '#FF6F9C');
+  renderSwatches();
+}
+
+$('title').addEventListener('input', (e) => update({ title: e.target.value }, false));
+$('layoutSeg').addEventListener('click', (e) => {
+  const b = e.target.closest('button[data-layout]');
+  if (b && b.dataset.layout !== S.layout) update({ layout: b.dataset.layout });
+});
+$('opacity').addEventListener('input', (e) => {
+  $('opacityV').textContent = e.target.value + '%';
+  update({ opacity: Number(e.target.value) / 100 }, false);
+});
+TOGGLES.forEach((k) => $(k).addEventListener('change', (e) => update({ [k]: e.target.checked })));
+$('resetBtn').addEventListener('click', () => update({ ...DEFAULTS }));
+
+function setSave(text, cls = '') {
+  $('saveState').textContent = text;
+  $('saveState').className = 'save ' + cls;
+}
+
+// 修改后稍等片刻再保存，拖动滑块时不会频繁写文件
+function update(patch, rerender = true) {
+  S = { ...S, ...patch };
+  version++;
+  if (rerender) renderForm();
+  else document.documentElement.style.setProperty('--accent', S.accent || '#FF6F9C');
+  setSave('保存中…');
+  clearTimeout(timer);
+  timer = setTimeout(save, 250);
+}
+
+async function save() {
+  const v = version;
+  try {
+    const res = await fetch('/api/overlay-settings', {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(S),
+    });
+    if (!res.ok) throw new Error(await res.text());
+    if (v !== version) return; // 保存期间又改了，等下一次保存
+    await load();
+    setSave('已保存 · OBS 中已生效', 'ok');
+  } catch (err) {
+    setSave('保存失败：' + (err.message || '请确认程序正在运行'), 'bad');
+  }
+}
+
+// 读取服务端保存的设置；正在编辑的输入框、滑块和取色器不会被覆盖
+async function load() {
+  const d = await (await fetch('/api/overlay')).json();
+  S = d.settings;
+  renderForm();
+  if (!document.body.classList.contains('ready')) {
+    void document.body.offsetHeight; // 先让开关按当前设置完成样式计算，再开启动画
+    document.body.classList.add('ready');
+  }
+}
+
+$('bgSeg').addEventListener('click', (e) => {
+  const b = e.target.closest('button[data-bg]');
+  if (!b) return;
+  $('stage').className = 'stage ' + b.dataset.bg;
+  $('bgSeg').querySelectorAll('button').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+  GT.store.set('previewBg', b.dataset.bg);
+});
+const bg = GT.store.get('previewBg', 'checker');
+$('bgSeg').querySelector(`[data-bg="${bg}"]`)?.click();
+
+load().catch(() => setSave('无法连接本地服务，请确认程序正在运行', 'bad'));
+</script>
+</body>
+</html>
