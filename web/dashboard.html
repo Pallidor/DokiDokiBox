@@ -800,7 +800,7 @@ function renderTiers(d) {
     }).join('');
   }
   const minis = [
-    { k: `高档位（≥${GT.num(d.meta.bigPrize)}）合计`, v: `${GT.num(d.bigCount)} 次 · ${d.summary.boxes ? GT.pct(d.bigRate, 2) : '—'}`, color: GOLD },
+    { k: `大奖（≥ 单价 ${GT.num(d.meta.bigMultiple)} 倍）合计`, v: `${GT.num(d.bigCount)} 次 · ${d.summary.boxes ? GT.pct(d.bigRate, 2) : '—'}`, color: GOLD },
     { k: '距上次大奖', v: d.hasBig ? `${GT.num(d.sinceBig)} 盒` : (d.summary.boxes ? `${GT.num(d.sinceBig)} 盒 · 未出` : '—') },
     { k: '最长连续未出大奖', v: d.summary.boxes ? `${GT.num(d.longestDrought)} 盒` : '—' },
   ];

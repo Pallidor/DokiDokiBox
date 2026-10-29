@@ -149,10 +149,34 @@ func TestMultipleBoxKinds(t *testing.T) {
 		t.Fatalf("feed %+v", r.Feed[0])
 	}
 
+	// 大奖按各自盲盒单价的倍数判断：城堡（单价 150 的 148 倍）算，荧光棒（单价 50 的 0.6 倍）不算
+	if r.BigCount != 1 || !r.Tiers[0].Big || r.Tiers[1].Big || r.Tiers[2].Big {
+		t.Fatalf("big count %d tiers %+v", r.BigCount, r.Tiers)
+	}
+
 	// 只看星光盲盒：汇总只算它，种类列表仍然完整
 	r = app.computeStats("session", "星光盲盒", "net", false)
 	if r.Summary.Boxes != 4 || r.Summary.Spent != 200 || len(r.Tiers) != 1 || len(r.Kinds) != 2 || r.SessionsBoxes != 4 {
 		t.Fatalf("filtered summary %+v tiers %+v", r.Summary, r.Tiers)
+	}
+}
+
+func TestBigPrizeByMultiple(t *testing.T) {
+	cfg := config.Default() // 5 倍
+	cases := []struct {
+		gift, box int64
+		want      bool
+	}{
+		{75000, 15000, true},    // 心动盲盒开出 750 电池：正好 5 倍
+		{40000, 15000, false},   // 400 电池
+		{100000, 500000, false}, // 5000 电池的盲盒开出 1000 电池不算大奖
+		{30000, 5000, true},     // 50 电池的盲盒开出 300 电池算大奖
+		{100000, 0, false},      // 单价未知
+	}
+	for _, c := range cases {
+		if got := cfg.IsBig(c.gift, c.box); got != c.want {
+			t.Errorf("IsBig(%d, %d) = %v", c.gift, c.box, got)
+		}
 	}
 }
 

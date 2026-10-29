@@ -25,8 +25,8 @@ type Meta struct {
 	Accent       string        `json:"accent"`
 	RealRoom     int64         `json:"realRoom"`
 	Room         bili.RoomInfo `json:"room"`
-	Login        string        `json:"login"` // 已登录的 B 站账号昵称
-	BigPrize     float64       `json:"bigPrize"`
+	Login        string        `json:"login"`       // 已登录的 B 站账号昵称
+	BigMultiple  float64       `json:"bigMultiple"` // 开出价值 ≥ 盲盒单价 × 该倍数算大奖
 }
 
 type Summary struct {
@@ -138,7 +138,7 @@ func (a *App) meta() Meta {
 	m := Meta{
 		Demo: a.demo, RoomID: a.roomID, Title: a.title, Live: a.live,
 		ServerNow: time.Now().UnixMilli(), Status: a.status, StatusMsg: a.statusMsg,
-		LastEventAt: a.lastEvent, Version: Version, Accent: a.cfg.Accent, BigPrize: a.cfg.BigPrizeValue,
+		LastEventAt: a.lastEvent, Version: Version, Accent: a.cfg.Accent, BigMultiple: a.cfg.BigPrizeMultiple,
 		RealRoom: a.realRoom, Room: a.room, Login: a.login,
 	}
 	a.mu.RUnlock()
@@ -231,6 +231,8 @@ func boxKinds(evs, known []store.Event) []BoxKind {
 	return list
 }
 
+func (a *App) isBig(e store.Event) bool { return a.cfg.IsBig(e.GiftPrice, e.BoxPrice) }
+
 func ratio(got, spent int64) float64 {
 	if spent <= 0 {
 		return 0
@@ -264,10 +266,10 @@ func summarize(evs []store.Event) Summary {
 }
 
 // droughts 返回（距上次大奖的盒数，是否出过大奖，最长连续未出大奖盒数，大奖盒数）。
-func droughts(evs []store.Event, bigGold int64) (since int, found bool, longest int, bigCount int) {
+func droughts(evs []store.Event, isBig func(store.Event) bool) (since int, found bool, longest int, bigCount int) {
 	run := 0
 	for _, e := range evs {
-		if e.GiftPrice >= bigGold {
+		if isBig(e) {
 			longest = max(longest, run)
 			run = 0
 			found = true
@@ -279,7 +281,7 @@ func droughts(evs []store.Event, bigGold int64) (since int, found bool, longest 
 	return run, found, max(longest, run), bigCount
 }
 
-func senders(evs []store.Event, bigGold int64) []Sender {
+func senders(evs []store.Event, isBig func(store.Event) bool) []Sender {
 	type acc struct {
 		s          Sender
 		spent, got int64
@@ -296,7 +298,7 @@ func senders(evs []store.Event, bigGold int64) []Sender {
 		u.s.Boxes += e.Num
 		u.spent += e.BoxPrice * int64(e.Num)
 		u.got += e.GiftPrice * int64(e.Num)
-		if e.GiftPrice >= bigGold {
+		if isBig(e) {
 			u.s.Big += e.Num
 		}
 	}
@@ -336,7 +338,7 @@ func (a *App) computeStats(rangeKey, box, sortKey string, bigOnly bool) StatsRes
 	if _, ok := rangeLabels[rangeKey]; !ok {
 		rangeKey = "session"
 	}
-	bigGold := a.cfg.BigGold()
+	isBig := a.isBig
 	all, hasRange := a.rangeEvents(rangeKey)
 	// 近 30 天开出过的盲盒和礼物即使本范围内没开出也列出来（次数为 0），
 	// 这样档位编号和颜色在不同场次、不同统计范围之间保持一致；奖池调整后旧礼物 30 天后自动消失
@@ -355,9 +357,9 @@ func (a *App) computeStats(rangeKey, box, sortKey string, bigOnly bool) StatsRes
 		boxCount[k.Name] = k.Boxes
 	}
 	type tierAcc struct {
-		box, name string
-		gold      int64
-		count     int
+		box, name     string
+		gold, boxGold int64 // boxGold 取最近一条记录的盲盒单价，用来判断该档是否算大奖
+		count         int
 	}
 	tierKey := func(e store.Event) string {
 		return e.Box + "|" + e.Gift + "|" + strconv.FormatInt(e.GiftPrice, 10)
@@ -367,6 +369,7 @@ func (a *App) computeStats(rangeKey, box, sortKey string, bigOnly bool) StatsRes
 		if tm[tierKey(e)] == nil {
 			tm[tierKey(e)] = &tierAcc{box: e.Box, name: e.Gift, gold: e.GiftPrice}
 		}
+		tm[tierKey(e)].boxGold = e.BoxPrice
 	}
 	for _, e := range evs {
 		tm[tierKey(e)].count += e.Num
@@ -393,7 +396,7 @@ func (a *App) computeStats(rangeKey, box, sortKey string, bigOnly bool) StatsRes
 			rank = 0
 		}
 		tierRank[t.box+"|"+t.name+"|"+strconv.FormatInt(t.gold, 10)] = rank
-		tr := Tier{Box: t.box, Rank: rank, Name: t.name, Value: battery(t.gold), Count: t.count, Big: t.gold >= bigGold}
+		tr := Tier{Box: t.box, Rank: rank, Name: t.name, Value: battery(t.gold), Count: t.count, Big: a.cfg.IsBig(t.gold, t.boxGold)}
 		if n := boxCount[t.box]; n > 0 {
 			tr.Rate = float64(t.count) / float64(n)
 		}
@@ -401,7 +404,7 @@ func (a *App) computeStats(rangeKey, box, sortKey string, bigOnly bool) StatsRes
 		rank++
 	}
 
-	r.SinceBig, r.HasBig, r.LongestDrought, r.BigCount = droughts(evs, bigGold)
+	r.SinceBig, r.HasBig, r.LongestDrought, r.BigCount = droughts(evs, isBig)
 	if r.Summary.Boxes > 0 {
 		r.BigRate = float64(r.BigCount) / float64(r.Summary.Boxes)
 	}
@@ -409,7 +412,7 @@ func (a *App) computeStats(rangeKey, box, sortKey string, bigOnly bool) StatsRes
 	r.Feed = []FeedItem{}
 	for i := len(evs) - 1; i >= 0 && len(r.Feed) < 50; i-- {
 		e := evs[i]
-		big := e.GiftPrice >= bigGold
+		big := isBig(e)
 		if bigOnly && !big {
 			continue
 		}
@@ -420,7 +423,7 @@ func (a *App) computeStats(rangeKey, box, sortKey string, bigOnly bool) StatsRes
 		})
 	}
 
-	list := senders(evs, bigGold)
+	list := senders(evs, isBig)
 	sortSenders(list, sortKey)
 	r.SenderTotal = len(list)
 	r.Senders = list[:min(len(list), 50)]
@@ -463,21 +466,20 @@ func (a *App) sessionBars(n int, box string) ([]SessionBar, int, float64) {
 }
 
 func (a *App) computeOverlay() OverlayResp {
-	bigGold := a.cfg.BigGold()
 	evs, _ := a.rangeEvents("session")
 	sum := summarize(evs)
 	r := OverlayResp{Meta: a.meta(), Settings: a.OverlaySettings(), Boxes: sum.Boxes, Spent: sum.Spent, Got: sum.Got, Net: sum.Net}
 	if r.Settings.Accent == "" {
 		r.Settings.Accent = a.cfg.Accent
 	}
-	r.SinceBig, r.HasBig, _, _ = droughts(evs, bigGold)
+	r.SinceBig, r.HasBig, _, _ = droughts(evs, a.isBig)
 	r.Wins = []FeedItem{}
 	for i := len(evs) - 1; i >= 0 && len(r.Wins) < 3; i-- {
-		if e := evs[i]; e.GiftPrice >= bigGold {
+		if e := evs[i]; a.isBig(e) {
 			r.Wins = append(r.Wins, FeedItem{TS: e.TS, Box: e.Box, User: e.Uname, Gift: e.Gift, Value: battery(e.GiftPrice), Num: e.Num, Big: true})
 		}
 	}
-	list := senders(evs, bigGold)
+	list := senders(evs, a.isBig)
 	sortSenders(list, "net")
 	r.Lucky = list[:min(len(list), 3)]
 	return r
