@@ -3,7 +3,7 @@ chcp 65001 >nul
 setlocal
 cd /d "%~dp0"
 
-echo 心动盲盒数据台：从源码自己编译 DokiDokiBox.exe
+echo 盲盒数据台：从源码自己编译 DokiDokiBox.exe
 echo.
 
 where go >nul 2>nul

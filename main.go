@@ -1,4 +1,4 @@
-// 心动盲盒数据台：B 站直播间盲盒统计工具（心动盲盒、假面盲盒等所有盲盒）。
+// 盲盒数据台：B 站直播间盲盒统计工具（心动盲盒、假面盲盒等所有盲盒）。
 //
 // 代码结构：
 //
@@ -95,7 +95,7 @@ func main() {
 
 	url := "http://" + displayAddr(ln.Addr().String())
 	fmt.Println()
-	fmt.Println("  心动盲盒数据台 v" + version + " 已启动" + map[bool]string{true: "（示例模式）", false: ""}[*demo])
+	fmt.Println("  盲盒数据台 v" + version + " 已启动" + map[bool]string{true: "（示例模式）", false: ""}[*demo])
 	fmt.Println("  主播后台：    " + url + "/")
 	fmt.Println("  OBS 叠加层：  " + url + "/overlays")
 	fmt.Println("  数据目录：    " + dataDir)
