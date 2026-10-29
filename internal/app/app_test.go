@@ -40,7 +40,7 @@ func TestStatsAndSessions(t *testing.T) {
 	add("3", 4000, "a", 10000, 2)   // 2 盒
 	add("4", 500, "early", 5000, 1) // 开播前，不计入本场
 
-	r := app.computeStats("session", "net", false)
+	r := app.computeStats("session", "", "net", false)
 	s := r.Summary
 	if s.Boxes != 6 || s.Users != 2 || s.Spent != 900 || s.Got != 2350 || s.Net != 1450 {
 		t.Fatalf("summary %+v", s)
@@ -118,12 +118,41 @@ func TestTiersIncludeRecentGifts(t *testing.T) {
 	app.LiveStarted(now-3600e3, "测试")
 	app.AddEvent(box("new", now-60e3, "b", "棉花糖", 9000, 2))
 
-	r := app.computeStats("session", "net", false)
+	r := app.computeStats("session", "", "net", false)
 	if len(r.Tiers) != 2 || r.Tiers[0].Name != "城堡" || r.Tiers[0].Count != 0 || r.Tiers[1].Count != 2 {
 		t.Fatalf("tiers %+v", r.Tiers)
 	}
 	if r.Summary.Boxes != 2 || r.Feed[0].Tier != 1 {
 		t.Fatalf("summary %+v feed %+v", r.Summary, r.Feed)
+	}
+}
+
+func TestMultipleBoxKinds(t *testing.T) {
+	app := newTestApp(t, 0)
+	now := time.Now().UnixMilli()
+	app.LiveStarted(now-3600e3, "测试")
+	app.AddEvent(box("h1", now-50e3, "a", "棉花糖", 9000, 3))
+	app.AddEvent(box("h2", now-40e3, "a", "城堡", 2233000, 1))
+	star := box("s1", now-30e3, "b", "荧光棒", 3000, 4)
+	star.Box, star.BoxPrice = "星光盲盒", 5000
+	app.AddEvent(star)
+
+	// 全部：两种盲盒都统计，档位按盲盒分组，出现率在各自盲盒内计算
+	r := app.computeStats("session", "", "net", false)
+	if r.Summary.Boxes != 8 || len(r.Kinds) != 2 || r.Kinds[0].Name != "心动盲盒" || r.Kinds[0].Boxes != 4 || r.Kinds[1].Boxes != 4 {
+		t.Fatalf("summary %+v kinds %+v", r.Summary, r.Kinds)
+	}
+	if len(r.Tiers) != 3 || r.Tiers[0].Name != "城堡" || r.Tiers[0].Rate != 0.25 || r.Tiers[2].Box != "星光盲盒" || r.Tiers[2].Rank != 0 || r.Tiers[2].Rate != 1 {
+		t.Fatalf("tiers %+v", r.Tiers)
+	}
+	if r.Feed[0].Box != "星光盲盒" || r.Feed[0].Tier != 0 {
+		t.Fatalf("feed %+v", r.Feed[0])
+	}
+
+	// 只看星光盲盒：汇总只算它，种类列表仍然完整
+	r = app.computeStats("session", "星光盲盒", "net", false)
+	if r.Summary.Boxes != 4 || r.Summary.Spent != 200 || len(r.Tiers) != 1 || len(r.Kinds) != 2 || r.SessionsBoxes != 4 {
+		t.Fatalf("filtered summary %+v tiers %+v", r.Summary, r.Tiers)
 	}
 }
 
@@ -138,7 +167,7 @@ func TestOfflineSessions(t *testing.T) {
 	if !cur.Offline || cur.End != 0 {
 		t.Fatalf("应开启未开播时段：%+v", cur)
 	}
-	if r := app.computeStats("session", "net", false); r.Summary.Boxes != 1 || !r.Meta.SessionOff {
+	if r := app.computeStats("session", "", "net", false); r.Summary.Boxes != 1 || !r.Meta.SessionOff {
 		t.Fatalf("本场应包含未开播记录：%+v %+v", r.Summary, r.Meta)
 	}
 	app.LiveEnded() // 未开播时每分钟都会确认一次下播，不能结束未开播时段
@@ -159,7 +188,7 @@ func TestOfflineSessions(t *testing.T) {
 		t.Fatalf("开播后场次 %+v", ss)
 	}
 	ev("3", now-60e3)
-	if r := app.computeStats("session", "net", false); r.Summary.Boxes != 1 || r.Meta.SessionOff {
+	if r := app.computeStats("session", "", "net", false); r.Summary.Boxes != 1 || r.Meta.SessionOff {
 		t.Fatalf("开播后本场只算直播中的记录：%+v", r.Summary)
 	}
 }
@@ -169,11 +198,11 @@ func TestRoomStores(t *testing.T) {
 	app.AddEvent(box("a", time.Now().UnixMilli(), "a", "棉花糖", 9000, 1))
 
 	app.SetRoomID(2, 2) // 切到另一个直播间：数据分开
-	if r := app.computeStats("30d", "net", false); r.Summary.Boxes != 0 {
+	if r := app.computeStats("30d", "", "net", false); r.Summary.Boxes != 0 {
 		t.Fatalf("直播间 2 不应看到直播间 1 的记录：%+v", r.Summary)
 	}
 	app.SetRoomID(1, 1)
-	if r := app.computeStats("30d", "net", false); r.Summary.Boxes != 1 {
+	if r := app.computeStats("30d", "", "net", false); r.Summary.Boxes != 1 {
 		t.Fatalf("切回直播间 1 应看到原来的记录：%+v", r.Summary)
 	}
 }

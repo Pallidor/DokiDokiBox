@@ -57,7 +57,6 @@ func New(cfg *config.Config, cfgPath, dataDir string, demo bool) (*App, error) {
 	storeDir, room := dataDir, int64(0)
 	if demo {
 		os.RemoveAll(dataDir)
-		cfg = demoConfig(cfg)
 	} else if room = cfg.RoomID; room > 0 {
 		storeDir = store.RoomDir(dataDir, room)
 		store.MigrateLegacy(dataDir, storeDir)
@@ -214,9 +213,6 @@ func (a *App) AddEvent(e store.Event) {
 	a.mu.Lock()
 	a.lastEvent = max(a.lastEvent, e.TS)
 	a.mu.Unlock()
-	if !a.cfg.MatchBox(e.Box) {
-		return
-	}
 	a.st().TouchOffline(e.TS)           // 没开播时也记进「未开播」时段，「本场」里能看到
 	a.hub.Broadcast("gift", struct{}{}) // 网页收到后重新拉取统计
 

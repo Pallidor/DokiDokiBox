@@ -26,7 +26,7 @@ type OverlaySettings struct {
 	ShowSince    bool    `json:"showSince"`    // 距上次大奖
 }
 
-const defaultOverlayTitle = "心动盲盒 · 本场战报"
+const defaultOverlayTitle = "盲盒 · 本场战报"
 
 func defaultOverlaySettings() OverlaySettings {
 	return OverlaySettings{

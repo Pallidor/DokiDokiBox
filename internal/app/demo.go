@@ -1,14 +1,13 @@
 package app
 
 // 示例模式：不连接 B 站，生成近 10 场的模拟数据，并持续模拟实时送盲盒。
-// 奖池（礼物、价值、概率）取自 bilibili-API-collect 的 docs/live/gift.md「获取盲盒概率」
-// 中心动盲盒的官方接口返回示例（2025 年 6 月收录），当前奖池可能已调整。
+// 心动盲盒的奖池（礼物、价值、概率）取自 bilibili-API-collect 的 docs/live/gift.md「获取盲盒概率」
+// 中的官方接口返回示例（2025 年 6 月收录），当前奖池可能已调整；「星光盲盒」是虚构的，只用来演示多种盲盒。
 
 import (
 	"context"
 	"fmt"
 	"github.com/Pallidor/DokiDokiBox/internal/bili"
-	"github.com/Pallidor/DokiDokiBox/internal/config"
 	"github.com/Pallidor/DokiDokiBox/internal/store"
 	"math"
 	"math/rand/v2"
@@ -16,21 +15,34 @@ import (
 	"time"
 )
 
-const demoBox, demoBoxPrice = "心动盲盒", 15000
-
-var demoGifts = []struct {
+type demoGift struct {
 	id   int64
 	name string
 	gold int64
 	p    float64 // 百分比
+}
+
+var demoBoxes = []struct {
+	name  string
+	price int64
+	share float64 // 被选中的概率
+	gifts []demoGift
 }{
-	{32132, "浪漫城堡", 2233000, 0.04},
-	{34894, "蛇形护符", 200000, 0.08},
-	{32282, "时空之站", 100000, 0.12},
-	{32281, "绮彩权杖", 40000, 3.7},
-	{32128, "爱心抱枕", 16000, 45.56},
-	{32126, "棉花糖", 9000, 44.5},
-	{32125, "电影票", 2000, 6},
+	{"心动盲盒", 15000, 0.78, []demoGift{
+		{32132, "浪漫城堡", 2233000, 0.04},
+		{34894, "蛇形护符", 200000, 0.08},
+		{32282, "时空之站", 100000, 0.12},
+		{32281, "绮彩权杖", 40000, 3.7},
+		{32128, "爱心抱枕", 16000, 45.56},
+		{32126, "棉花糖", 9000, 44.5},
+		{32125, "电影票", 2000, 6},
+	}},
+	{"星光盲盒", 5000, 0.22, []demoGift{
+		{0, "流星雨", 100000, 0.3},
+		{0, "星光棒", 20000, 4},
+		{0, "小星星", 5200, 40},
+		{0, "荧光棒", 3000, 55.7},
+	}},
 }
 
 var demoUsers = []string{
@@ -44,13 +56,7 @@ type demoGen struct {
 	seq int
 }
 
-func demoConfig(cfg *config.Config) *config.Config {
-	c := *cfg
-	c.BoxNames = []string{demoBox}
-	return &c
-}
-
-// purchase 模拟一位观众一次性开若干个盲盒；同一礼物合并为一条消息，与 B 站推送方式一致。
+// purchase 模拟一位观众一次性开若干个同一种盲盒；同一礼物合并为一条消息，与 B 站推送方式一致。
 func (g *demoGen) purchase(ts time.Time) []store.Event {
 	// 幂分布让少数观众开得特别多，接近真实直播间
 	idx := int(math.Pow(g.rng.Float64(), 2.2) * float64(len(demoUsers)))
@@ -62,11 +68,19 @@ func (g *demoGen) purchase(ts time.Time) []store.Event {
 	case x > 0.75:
 		n = 2 + g.rng.IntN(4)
 	}
+	b := demoBoxes[len(demoBoxes)-1]
+	for x, i := g.rng.Float64(), 0; i < len(demoBoxes); i++ {
+		if x < demoBoxes[i].share {
+			b = demoBoxes[i]
+			break
+		}
+		x -= demoBoxes[i].share
+	}
 	counts := map[int]int{}
 	for range n {
 		x := g.rng.Float64() * 100
-		for i, gift := range demoGifts {
-			if x < gift.p || i == len(demoGifts)-1 {
+		for i, gift := range b.gifts {
+			if x < gift.p || i == len(b.gifts)-1 {
 				counts[i]++
 				break
 			}
@@ -74,14 +88,14 @@ func (g *demoGen) purchase(ts time.Time) []store.Event {
 		}
 	}
 	var evs []store.Event
-	for i, gift := range demoGifts {
+	for i, gift := range b.gifts {
 		if counts[i] == 0 {
 			continue
 		}
 		g.seq++
 		evs = append(evs, store.Event{
 			ID: fmt.Sprintf("demo-%d-%d", ts.UnixNano(), g.seq), TS: ts.UnixMilli(),
-			UID: uid, Uname: user, Box: demoBox, BoxPrice: demoBoxPrice,
+			UID: uid, Uname: user, Box: b.name, BoxPrice: b.price,
 			GiftID: gift.id, Gift: gift.name, GiftPrice: gift.gold, Num: counts[i],
 		})
 	}

@@ -4,7 +4,7 @@ B 站直播间「心动盲盒」统计工具：实时记录观众开出的每一
 
 单个 `DokiDokiBox.exe`，双击即可运行，不需要安装任何环境，数据只保存在本机。到 [Releases](https://github.com/Pallidor/DokiDokiBox/releases) 下载最新版。
 
-当前版本：**v0.0.2-beta**（测试版，欢迎在 [Issues](https://github.com/Pallidor/DokiDokiBox/issues) 反馈问题）。
+当前版本：**v0.0.3-beta**（测试版，欢迎在 [Issues](https://github.com/Pallidor/DokiDokiBox/issues) 反馈问题）。
 
 > 本工具是个人开发的第三方工具，与哔哩哔哩官方无关。
 

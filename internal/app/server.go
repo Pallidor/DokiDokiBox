@@ -29,7 +29,7 @@ func (a *App) Routes(static fs.FS) http.Handler {
 
 	mux.HandleFunc("GET /api/stats", func(w http.ResponseWriter, r *http.Request) {
 		q := r.URL.Query()
-		writeJSON(w, a.computeStats(q.Get("range"), q.Get("sort"), q.Get("bigOnly") == "1"))
+		writeJSON(w, a.computeStats(q.Get("range"), q.Get("box"), q.Get("sort"), q.Get("bigOnly") == "1"))
 	})
 	mux.HandleFunc("GET /api/overlay", func(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, a.computeOverlay())
@@ -210,7 +210,12 @@ func (a *App) handleExport(w http.ResponseWriter, r *http.Request) {
 		key = "session"
 	}
 	evs, _ := a.rangeEvents(key)
-	name := fmt.Sprintf("盲盒记录-%s-%s.csv", rangeLabels[key], time.Now().Format("20060102-1504"))
+	label := rangeLabels[key]
+	if box := r.URL.Query().Get("box"); box != "" {
+		evs = filterBox(evs, box)
+		label += "-" + box
+	}
+	name := fmt.Sprintf("盲盒记录-%s-%s.csv", label, time.Now().Format("20060102-1504"))
 	w.Header().Set("Content-Type", "text/csv; charset=utf-8")
 	w.Header().Set("Content-Disposition", "attachment; filename*=UTF-8''"+urlPathEscape(name))
 	w.Write([]byte{0xEF, 0xBB, 0xBF}) // 让 Excel 正确识别 UTF-8

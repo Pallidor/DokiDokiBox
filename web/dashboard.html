@@ -131,6 +131,10 @@ h2 { margin: 0; font-size: 17px; font-weight: 700; }
 .tiers-head span:last-child { grid-column: 4; text-align: right; }
 .tier { padding: 10px 6px; border-top: 1px solid var(--line); }
 .tier.zero { opacity: 0.5; }
+.tier-group { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; padding: 16px 6px 8px; border-top: 1px solid var(--line); }
+.tier-group:first-child { padding-top: 4px; border-top: 0; }
+.tier-group b { font-size: 15px; }
+.tier-group span { font-size: 12px; color: var(--muted); }
 .tier .rank { width: 30px; height: 30px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 700; }
 .tier .gift { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .tier .gift .n { font-size: 15px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -191,6 +195,7 @@ footer { font-size: 12px; color: var(--muted); display: flex; flex-wrap: wrap; g
   </div>
   <div class="top-right">
     <div role="group" aria-label="统计范围" class="seg" id="ranges"></div>
+    <div role="group" aria-label="盲盒种类" class="seg" id="boxSeg" hidden></div>
     <a class="btn" id="exportBtn" href="/api/export.csv">
       <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"></path><path d="m7 10 5 5 5-5"></path><path d="M5 21h14"></path></svg>导出 CSV
     </a>
@@ -368,6 +373,7 @@ const SORTS = [['boxes', '按盒数'], ['net', '按净盈亏'], ['big', '按大�
 
 const S = {
   range: 'session', // 每次打开都从「本场」开始，不记住上次的选择
+  box: '', // 只看某种盲盒，空表示全部
   sort: GT.store.get('sort', 'boxes'),
   bigOnly: GT.store.get('bigOnly', '0') === '1',
   showAll: false,
@@ -389,13 +395,31 @@ function renderControls() {
   $('sorts').innerHTML = SORTS.map(([id, label]) =>
     `<button type="button" data-sort="${id}" aria-pressed="${S.sort === id}">${label}</button>`).join('');
   $('bigOnly').checked = S.bigOnly;
-  $('exportBtn').href = '/api/export.csv?range=' + S.range;
+  $('exportBtn').href = '/api/export.csv?' + new URLSearchParams({ range: S.range, box: S.box });
+}
+
+// 盲盒种类切换：近 30 天只出现过一种盲盒时不显示
+function renderBoxSeg(d) {
+  const names = d.kinds.map((k) => k.name);
+  if (S.box && !names.includes(S.box)) names.push(S.box);
+  const seg = $('boxSeg');
+  seg.hidden = names.length < 2;
+  seg.innerHTML = [['', '全部盲盒'], ...names.map((n) => [n, n])].map(([id, label]) =>
+    `<button type="button" data-box="${GT.esc(id)}" aria-pressed="${S.box === id}">${GT.esc(label)}</button>`).join('');
 }
 
 $('ranges').addEventListener('click', (e) => {
   const b = e.target.closest('button[data-range]');
   if (!b) return;
   S.range = b.dataset.range;
+  seenFeed = null;
+  renderControls();
+  load();
+});
+$('boxSeg').addEventListener('click', (e) => {
+  const b = e.target.closest('button[data-box]');
+  if (!b) return;
+  S.box = b.dataset.box;
   seenFeed = null;
   renderControls();
   load();
@@ -577,7 +601,7 @@ $('moreBtn').addEventListener('click', () => {
 async function load() {
   const seq = ++reqSeq;
   try {
-    const q = new URLSearchParams({ range: S.range, sort: S.sort, bigOnly: S.bigOnly ? '1' : '0' });
+    const q = new URLSearchParams({ range: S.range, box: S.box, sort: S.sort, bigOnly: S.bigOnly ? '1' : '0' });
     const res = await fetch('/api/stats?' + q);
     const d = await res.json();
     if (seq !== reqSeq) return;
@@ -594,6 +618,7 @@ function render(d) {
   if (d.meta.accent) accent = d.meta.accent;
   document.documentElement.style.setProperty('--accent', accent);
   renderHeader(d);
+  renderBoxSeg(d);
   renderKpis(d);
   renderFeed(d);
   renderTiers(d);
@@ -726,7 +751,8 @@ function renderFeed(d) {
     seenFeed = new Set();
     return;
   }
-  const keyOf = (f) => `${f.ts}|${f.user}|${f.gift}|${f.num}`;
+  const keyOf = (f) => `${f.ts}|${f.box}|${f.user}|${f.gift}|${f.num}`;
+  const showBox = !d.box && d.kinds.length > 1;
   const first = seenFeed === null;
   const next = new Set();
   el.innerHTML = d.feed.map((f) => {
@@ -739,7 +765,7 @@ function renderFeed(d) {
         <span class="num time">${GT.clock(f.ts)}</span>
         <div class="main">
           <span class="line1">${GT.esc(f.user)}<span style="color: var(--muted)"> 开出 </span><span style="color: ${color}; font-weight: 500">${GT.esc(f.gift)}</span>${f.num > 1 ? `<span class="num" style="color: var(--muted)"> ×${f.num}</span>` : ''}</span>
-          <span class="line2"><span class="num">${f.tier + 1}</span> · 价值 <span class="num">${GT.num(f.value)}</span> 电池</span>
+          <span class="line2">${showBox ? `${GT.esc(f.box)} · ` : ''}<span class="num">${f.tier + 1}</span> 档 · 价值 <span class="num">${GT.num(f.value)}</span> 电池</span>
         </div>
         <span class="num delta" style="color: ${GT.pnlColor(f.delta, MUTED)}">${GT.signed(f.delta)}</span>
       </div>`;
@@ -754,13 +780,19 @@ function renderTiers(d) {
   if (!d.tiers.length) {
     el.innerHTML = `<div class="empty">暂无数据</div>`;
   } else {
+    // 多种盲盒时按盲盒分组，每组有自己的档位编号和出现率
+    const kinds = new Map(d.kinds.map((k) => [k.name, k]));
+    const grouped = new Set(d.tiers.map((t) => t.box)).size > 1;
     const maxRate = Math.max(...d.tiers.map((t) => t.rate)) || 1;
     el.innerHTML = d.tiers.map((t, i) => {
-      const color = tierColor(i);
+      const color = tierColor(t.rank);
       const w = Math.max(2, Math.round((t.rate / maxRate) * 100));
-      return `
+      const k = kinds.get(t.box);
+      const head = grouped && (i === 0 || d.tiers[i - 1].box !== t.box) ? `
+        <div class="tier-group"><b>${GT.esc(t.box)}</b><span>单价 <span class="num">${k ? GT.num(k.price) : '—'}</span> 电池 · 样本 <span class="num">${k ? GT.num(k.boxes) : 0}</span> 盒${k && k.boxes ? ` · 回报率 <span class="num">${GT.pct(k.ratio)}</span>` : ''}</span></div>` : '';
+      return head + `
         <div class="tier${t.count ? '' : ' zero'}">
-          <span class="rank num" style="color: ${color}; background: color-mix(in srgb, ${color} 16%, transparent)">${i + 1}</span>
+          <span class="rank num" style="color: ${color}; background: color-mix(in srgb, ${color} 16%, transparent)">${t.rank + 1}</span>
           <span class="gift"><span class="n" title="${GT.esc(t.name)}">${GT.esc(t.name)}</span><span class="sub">价值 <span class="num">${GT.num(t.value)}</span></span></span>
           <span class="track" aria-hidden="true"><span class="fill" style="width: ${t.count ? w : 0}%; background: ${color}"></span></span>
           <span class="stat"><span class="c"><span class="num">${GT.num(t.count)}</span><small>次</small></span><span class="sub num">${GT.pct(t.rate, 2)}</span></span>

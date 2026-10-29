@@ -1,5 +1,5 @@
 @echo off
 chcp 65001 >nul
 cd /d "%~dp0"
-echo 调试模式：收到的所有礼物消息会记录到 data\debug-gifts.jsonl
+echo 调试模式：收到的所有礼物消息会记录到 data\room-直播间号\debug-gifts.jsonl
 DokiDokiBox.exe -debug

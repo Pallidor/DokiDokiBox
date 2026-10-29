@@ -6,23 +6,20 @@ import (
 	"errors"
 	"math"
 	"os"
-	"slices"
 	"strings"
 )
 
 type Config struct {
-	RoomID        int64    `json:"roomId"`           // 直播间号（短号、长号都可以）
-	Cookie        string   `json:"cookie,omitempty"` // 扫码登录后自动保存，只含 SESSDATA 和 DedeUserID
-	Listen        string   `json:"listen"`           // 本地网页服务地址
-	BoxNames      []string `json:"boxNames"`         // 统计哪些盲盒，留空表示全部盲盒
-	BigPrizeValue float64  `json:"bigPrizeValue"`    // 单个价值 ≥ 该值（电池）算大奖
-	Accent        string   `json:"accent"`           // 主题色
+	RoomID        int64   `json:"roomId"`           // 直播间号（短号、长号都可以）
+	Cookie        string  `json:"cookie,omitempty"` // 扫码登录后自动保存，只含 SESSDATA 和 DedeUserID
+	Listen        string  `json:"listen"`           // 本地网页服务地址
+	BigPrizeValue float64 `json:"bigPrizeValue"`    // 单个价值 ≥ 该值（电池）算大奖
+	Accent        string  `json:"accent"`           // 主题色
 }
 
 func Default() *Config {
 	return &Config{
 		Listen:        "127.0.0.1:11124",
-		BoxNames:      []string{"心动盲盒"},
 		BigPrizeValue: 1000,
 		Accent:        "#FF6F9C",
 	}
@@ -61,10 +58,6 @@ func Save(path string, cfg *Config) error {
 		return err
 	}
 	return os.WriteFile(path, append(b, '\n'), 0o644)
-}
-
-func (c *Config) MatchBox(name string) bool {
-	return len(c.BoxNames) == 0 || slices.Contains(c.BoxNames, name)
 }
 
 // BigGold 返回大奖阈值，单位金瓜子（1 电池 = 100 金瓜子）。

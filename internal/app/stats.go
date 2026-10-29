@@ -38,7 +38,10 @@ type Summary struct {
 	Ratio float64 `json:"ratio"`
 }
 
+// Tier 是某种盲盒里的一个档位（礼物 + 单价）；Rank 是该盲盒内按价值从高到低的序号，Rate 是该盲盒内的出现率。
 type Tier struct {
+	Box   string  `json:"box"`
+	Rank  int     `json:"rank"`
 	Name  string  `json:"name"`
 	Value float64 `json:"value"`
 	Count int     `json:"count"`
@@ -46,8 +49,18 @@ type Tier struct {
 	Big   bool    `json:"big"`
 }
 
+// BoxKind 是一种盲盒（按名字区分）在统计范围内的汇总。
+type BoxKind struct {
+	Name  string  `json:"name"`
+	Price float64 `json:"price"` // 单价（电池），取最近一条记录
+	Boxes int     `json:"boxes"`
+	Net   float64 `json:"net"`
+	Ratio float64 `json:"ratio"`
+}
+
 type FeedItem struct {
 	TS    int64   `json:"ts"`
+	Box   string  `json:"box"`
 	User  string  `json:"user"`
 	Gift  string  `json:"gift"`
 	Value float64 `json:"value"`
@@ -81,6 +94,8 @@ type StatsResp struct {
 	Range          string       `json:"range"`
 	RangeLabel     string       `json:"rangeLabel"`
 	HasRange       bool         `json:"hasRange"`
+	Box            string       `json:"box"`   // 只看某种盲盒，空表示全部
+	Kinds          []BoxKind    `json:"kinds"` // 近 30 天和本范围内出现过的盲盒种类
 	Summary        Summary      `json:"summary"`
 	Tiers          []Tier       `json:"tiers"`
 	BigCount       int          `json:"bigCount"`
@@ -136,7 +151,7 @@ func (a *App) meta() Meta {
 	return m
 }
 
-// rangeEvents 返回统计范围内、且属于所统计盲盒的事件。
+// rangeEvents 返回统计范围内的所有盲盒事件。
 func (a *App) rangeEvents(key string) ([]store.Event, bool) {
 	now := time.Now()
 	var from, to int64 = 0, math.MaxInt64
@@ -155,17 +170,65 @@ func (a *App) rangeEvents(key string) ([]store.Event, bool) {
 		}
 		from, to = cur.Start, sessionTo(cur)
 	}
-	return a.filterBox(a.st().Range(from, to)), true
+	return a.st().Range(from, to), true
 }
 
-func (a *App) filterBox(evs []store.Event) []store.Event {
-	out := evs[:0]
+// filterBox 只保留某种盲盒的事件；box 为空时原样返回。
+func filterBox(evs []store.Event, box string) []store.Event {
+	if box == "" {
+		return evs
+	}
+	out := []store.Event{}
 	for _, e := range evs {
-		if a.cfg.MatchBox(e.Box) {
+		if e.Box == box {
 			out = append(out, e)
 		}
 	}
 	return out
+}
+
+// boxKinds 汇总 evs 里各种盲盒的数据；known 里出现过、evs 里没有的种类也列出（0 盒），
+// 让种类列表和档位顺序在不同统计范围之间保持一致。按单价从高到低排列。
+func boxKinds(evs, known []store.Event) []BoxKind {
+	type acc struct {
+		price, ts, spent, got int64
+		boxes                 int
+	}
+	m := map[string]*acc{}
+	see := func(e store.Event) *acc {
+		k := m[e.Box]
+		if k == nil {
+			k = &acc{}
+			m[e.Box] = k
+		}
+		if e.TS >= k.ts {
+			k.price, k.ts = e.BoxPrice, e.TS
+		}
+		return k
+	}
+	for _, e := range known {
+		see(e)
+	}
+	for _, e := range evs {
+		k := see(e)
+		k.boxes += e.Num
+		k.spent += e.BoxPrice * int64(e.Num)
+		k.got += e.GiftPrice * int64(e.Num)
+	}
+	list := make([]BoxKind, 0, len(m))
+	for name, k := range m {
+		list = append(list, BoxKind{
+			Name: name, Price: battery(k.price), Boxes: k.boxes,
+			Net: battery(k.got - k.spent), Ratio: ratio(k.got, k.spent),
+		})
+	}
+	sort.Slice(list, func(i, j int) bool {
+		if list[i].Price != list[j].Price {
+			return list[i].Price > list[j].Price
+		}
+		return list[i].Name < list[j].Name
+	})
+	return list
 }
 
 func ratio(got, spent int64) float64 {
@@ -269,61 +332,73 @@ func sortSenders(list []Sender, key string) {
 	})
 }
 
-func (a *App) computeStats(rangeKey, sortKey string, bigOnly bool) StatsResp {
+func (a *App) computeStats(rangeKey, box, sortKey string, bigOnly bool) StatsResp {
 	if _, ok := rangeLabels[rangeKey]; !ok {
 		rangeKey = "session"
 	}
 	bigGold := a.cfg.BigGold()
-	evs, hasRange := a.rangeEvents(rangeKey)
-	r := StatsResp{
-		Meta: a.meta(), Range: rangeKey, RangeLabel: rangeLabels[rangeKey], HasRange: hasRange,
-		Summary: summarize(evs),
-	}
-
-	// 档位：按礼物名 + 单价分组，按价值从高到低排列
-	type tierAcc struct {
-		name  string
-		gold  int64
-		count int
-	}
-	tm := map[string]*tierAcc{}
-	for _, e := range evs {
-		k := e.Gift + "|" + strconv.FormatInt(e.GiftPrice, 10)
-		t := tm[k]
-		if t == nil {
-			t = &tierAcc{name: e.Gift, gold: e.GiftPrice}
-			tm[k] = t
-		}
-		t.count += e.Num
-	}
-	// 近 30 天开出过的礼物即使本范围内没开出也列出来（次数为 0），
+	all, hasRange := a.rangeEvents(rangeKey)
+	// 近 30 天开出过的盲盒和礼物即使本范围内没开出也列出来（次数为 0），
 	// 这样档位编号和颜色在不同场次、不同统计范围之间保持一致；奖池调整后旧礼物 30 天后自动消失
 	known, _ := a.rangeEvents("30d")
-	for _, e := range known {
-		k := e.Gift + "|" + strconv.FormatInt(e.GiftPrice, 10)
-		if tm[k] == nil {
-			tm[k] = &tierAcc{name: e.Gift, gold: e.GiftPrice}
+	evs := filterBox(all, box)
+	r := StatsResp{
+		Meta: a.meta(), Range: rangeKey, RangeLabel: rangeLabels[rangeKey], HasRange: hasRange,
+		Box: box, Kinds: boxKinds(all, known), Summary: summarize(evs),
+	}
+
+	// 档位：每种盲盒内按礼物名 + 单价分组；盲盒按种类列表的顺序，同一盲盒内按价值从高到低
+	kindOrder := map[string]int{}
+	boxCount := map[string]int{}
+	for i, k := range r.Kinds {
+		kindOrder[k.Name] = i
+		boxCount[k.Name] = k.Boxes
+	}
+	type tierAcc struct {
+		box, name string
+		gold      int64
+		count     int
+	}
+	tierKey := func(e store.Event) string {
+		return e.Box + "|" + e.Gift + "|" + strconv.FormatInt(e.GiftPrice, 10)
+	}
+	tm := map[string]*tierAcc{}
+	for _, e := range append(filterBox(known, box), evs...) {
+		if tm[tierKey(e)] == nil {
+			tm[tierKey(e)] = &tierAcc{box: e.Box, name: e.Gift, gold: e.GiftPrice}
 		}
+	}
+	for _, e := range evs {
+		tm[tierKey(e)].count += e.Num
 	}
 	tiers := make([]*tierAcc, 0, len(tm))
 	for _, t := range tm {
 		tiers = append(tiers, t)
 	}
 	sort.Slice(tiers, func(i, j int) bool {
-		if tiers[i].gold != tiers[j].gold {
-			return tiers[i].gold > tiers[j].gold
+		a, b := tiers[i], tiers[j]
+		if a.box != b.box {
+			return kindOrder[a.box] < kindOrder[b.box]
 		}
-		return tiers[i].name < tiers[j].name
+		if a.gold != b.gold {
+			return a.gold > b.gold
+		}
+		return a.name < b.name
 	})
-	tierIndex := map[string]int{}
+	tierRank := map[string]int{}
 	r.Tiers = []Tier{}
+	rank := 0
 	for i, t := range tiers {
-		tierIndex[t.name+"|"+strconv.FormatInt(t.gold, 10)] = i
-		tr := Tier{Name: t.name, Value: battery(t.gold), Count: t.count, Big: t.gold >= bigGold}
-		if r.Summary.Boxes > 0 {
-			tr.Rate = float64(t.count) / float64(r.Summary.Boxes)
+		if i > 0 && tiers[i-1].box != t.box {
+			rank = 0
+		}
+		tierRank[t.box+"|"+t.name+"|"+strconv.FormatInt(t.gold, 10)] = rank
+		tr := Tier{Box: t.box, Rank: rank, Name: t.name, Value: battery(t.gold), Count: t.count, Big: t.gold >= bigGold}
+		if n := boxCount[t.box]; n > 0 {
+			tr.Rate = float64(t.count) / float64(n)
 		}
 		r.Tiers = append(r.Tiers, tr)
+		rank++
 	}
 
 	r.SinceBig, r.HasBig, r.LongestDrought, r.BigCount = droughts(evs, bigGold)
@@ -339,9 +414,9 @@ func (a *App) computeStats(rangeKey, sortKey string, bigOnly bool) StatsResp {
 			continue
 		}
 		r.Feed = append(r.Feed, FeedItem{
-			TS: e.TS, User: e.Uname, Gift: e.Gift, Value: battery(e.GiftPrice),
+			TS: e.TS, Box: e.Box, User: e.Uname, Gift: e.Gift, Value: battery(e.GiftPrice),
 			Num: e.Num, Delta: battery((e.GiftPrice - e.BoxPrice) * int64(e.Num)), Big: big,
-			Tier: tierIndex[e.Gift+"|"+strconv.FormatInt(e.GiftPrice, 10)],
+			Tier: tierRank[tierKey(e)],
 		})
 	}
 
@@ -350,12 +425,12 @@ func (a *App) computeStats(rangeKey, sortKey string, bigOnly bool) StatsResp {
 	r.SenderTotal = len(list)
 	r.Senders = list[:min(len(list), 50)]
 
-	r.Sessions, r.SessionsBoxes, r.SessionsRatio = a.sessionBars(10)
+	r.Sessions, r.SessionsBoxes, r.SessionsRatio = a.sessionBars(10, box)
 	return r
 }
 
-// sessionBars 返回最近 n 场有盲盒记录的直播。
-func (a *App) sessionBars(n int) ([]SessionBar, int, float64) {
+// sessionBars 返回最近 n 场有盲盒记录的直播；box 不为空时只统计该种盲盒。
+func (a *App) sessionBars(n int, box string) ([]SessionBar, int, float64) {
 	sessions := a.st().Sessions()
 	cur, _ := a.st().CurrentSession()
 	bars := []SessionBar{}
@@ -365,7 +440,7 @@ func (a *App) sessionBars(n int) ([]SessionBar, int, float64) {
 		s := sessions[i]
 		var sp, gt int64
 		bx := 0
-		for _, e := range a.filterBox(a.st().Range(s.Start, sessionTo(s))) {
+		for _, e := range filterBox(a.st().Range(s.Start, sessionTo(s)), box) {
 			bx += e.Num
 			sp += e.BoxPrice * int64(e.Num)
 			gt += e.GiftPrice * int64(e.Num)
@@ -399,7 +474,7 @@ func (a *App) computeOverlay() OverlayResp {
 	r.Wins = []FeedItem{}
 	for i := len(evs) - 1; i >= 0 && len(r.Wins) < 3; i-- {
 		if e := evs[i]; e.GiftPrice >= bigGold {
-			r.Wins = append(r.Wins, FeedItem{TS: e.TS, User: e.Uname, Gift: e.Gift, Value: battery(e.GiftPrice), Num: e.Num, Big: true})
+			r.Wins = append(r.Wins, FeedItem{TS: e.TS, Box: e.Box, User: e.Uname, Gift: e.Gift, Value: battery(e.GiftPrice), Num: e.Num, Big: true})
 		}
 	}
 	list := senders(evs, bigGold)
